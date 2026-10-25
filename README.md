@@ -1,8 +1,12 @@
 # AutoRent-autodl
 
+**简体中文** | [English](docs/README.en.md)
+
 在本地 Windows 运行的 AutoDL 自动租卡工具。选择地区、GPU 型号和数据盘扩容容量，自动等待余卡并完成租用。
 
 ![界面演示，数据为示例](docs/images/preview.png)
+
+仓库首页、软件界面和命令行均默认中文。英文为可选版本，通过页面的 English 链接或 `start.cmd -Lang en` 使用；不会跟随系统语言自动切换。
 
 ## 快速开始
 
@@ -27,6 +31,7 @@ cd AutoRent-autodl
 - **自动读取信息**：账户当前价格、硬件配置和兼容镜像无需手填。
 - **独立费用展示**：GPU 小时价与数据盘日费分开显示。
 - **只读测试**：查询库存、核对报价，不创建实例；提交结果不明时停止重试。
+- **中英文支持**：默认中文，英文界面与文档均为可选，不改变官网地区和型号标识。
 
 ## 常用入口
 
@@ -35,6 +40,7 @@ cd AutoRent-autodl
 | 打开工具 | 双击根目录 `start.cmd` |
 | 只读查询 | `start.cmd -ReadOnly` 或 `scripts/start-readonly.cmd` |
 | 离线界面演示 | `start.cmd -Demo` |
+| 英文界面 / 演示 | `start.cmd -Lang en` / `start.cmd -Lang en -Demo` |
 | 运行测试 | `powershell -NoProfile -File scripts/test.ps1` |
 | 命令行帮助 | `python -m autodl_quick --help` |
 | 详细用法、配置与计费 | [使用说明](docs/usage.md) |
@@ -47,6 +53,7 @@ AutoRent-autodl/
 │   ├── core.py           # 库存、报价、扩容与租用流程
 │   ├── catalog.py        # 地区与型号目录
 │   ├── data/             # 随程序提供的公共目录快照
+│   ├── locales/          # 英文翻译资源
 │   └── ui/               # 主界面与高级偏好
 ├── config/               # 配置示例
 ├── docs/                 # 使用说明和界面图片

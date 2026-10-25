@@ -1,4 +1,4 @@
-param([switch]$Demo, [switch]$ReadOnly)
+param([switch]$Demo, [switch]$ReadOnly, [ValidateSet('zh', 'en')][string]$Lang = 'zh')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [System.IO.Directory]::GetParent($PSScriptRoot).FullName
 Set-Location -LiteralPath $projectRoot
@@ -11,5 +11,6 @@ if (-not $pythonCommand) {
 $launchArgs = @('-m', 'autodl_quick', 'gui')
 if ($Demo) { $launchArgs += '--demo' }
 if ($ReadOnly) { $launchArgs += '--read-only' }
+if ($PSBoundParameters.ContainsKey('Lang')) { $launchArgs += @('--lang', $Lang) }
 & $pythonCommand.Source @launchArgs
 if ($LASTEXITCODE -ne 0) { Read-Host 'Press Enter to close' }

@@ -61,11 +61,13 @@ class WindowsLauncherTests(unittest.TestCase):
             args_result = work / "args.txt"
             env = dict(os.environ, PATH=str(fake_bin) + os.pathsep + os.environ["PATH"],
                        AUTODL_LAUNCH_CWD=str(cwd_result), AUTODL_LAUNCH_ARGS=str(args_result))
-            result = subprocess.run(["cmd.exe", "/d", "/c", str(ROOT / "start.cmd"), "-Demo", "-ReadOnly"],
-                                    cwd=work, env=env, capture_output=True, timeout=20)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertEqual(Path(cwd_result.read_text().strip()), ROOT)
-            self.assertEqual(args_result.read_text().split(), ["-m", "autodl_quick", "gui", "--demo", "--read-only"])
+            for language_args in ([], ["-Lang", "en"]):
+                result = subprocess.run(["cmd.exe", "/d", "/c", str(ROOT / "start.cmd"), "-Demo", "-ReadOnly", *language_args],
+                                        cwd=work, env=env, capture_output=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(Path(cwd_result.read_text().strip()), ROOT)
+                expected = ["-m", "autodl_quick", "gui", "--demo", "--read-only"] + (["--lang", "en"] if language_args else [])
+                self.assertEqual(args_result.read_text().split(), expected)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # AutoRent-autodl 使用说明
 
-[返回项目首页](../README.md)
+[English](usage.en.md) | **简体中文** · [项目首页](../README.md)
 
 一个在本地运行的 AutoDL 自动租卡小工具，支持按地区、型号和数据盘扩容需求等待余卡。
 
@@ -20,6 +20,7 @@ cd AutoRent-autodl
 
 - `scripts/start-readonly.cmd`：只读测试，网络层禁止创建、支付、开关机、释放实例。
 - `start.cmd`：正常窗口，显示独立的“开始自动租卡（计费）”按钮；打开窗口不会自动下单。
+- `start.cmd -Lang en`：英文界面；`start.cmd -Lang zh`：中文界面。只读与演示开关可组合，例如 `start.cmd -Lang en -ReadOnly`。命令行同样支持 `--lang en`。地区名称和型号标识保持官网原名，不翻译 API 参数。
 - 网页 Token：登录 AutoDL → F12 → Application / 应用 → Local Storage / 本地存储 → `https://www.autodl.com` → `token`。只粘贴到本地工具，不发到聊天。Token 只保存在窗口内存，关闭后需重新填写。
 
 ## 型号与地区
@@ -99,7 +100,7 @@ cd AutoRent-autodl
 
 - 平台明确返回 `NoStock`、`GPUNotEnough` 或 `GpuNotEnough` 时，记录为已拒绝并尝试下一台；该分支只通过模拟测试，尚未为验证它而发送真实创建请求。
 - 创建超时、响应不明或其他业务错误时立即停止并保留记录，不自动重发，避免重复租用。
-- 连续 5 次查询网络失败或登录失效会停止；可修复网络 / 登录后重新等待。
+- 主界面会在设定的等待时限内重试暂时的查询网络失败；登录失效或响应格式异常会停止。高级界面原有等待流程在连续 5 次查询失败后停止。可修复网络 / 登录后重新等待。
 - 已有成功或不确定提交记录时拒绝再次租卡。核对控制台后，需要另一台时运行 `python -m autodl_quick archive-state --checked-console` 归档本地记录；归档不关机、不释放实例。
 
 ## 命令行与测试

@@ -26,6 +26,7 @@ import urllib.request
 import uuid
 
 from .catalog import Catalog, parse_region_stock
+from .i18n import Translator
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -875,25 +876,31 @@ def print_event(kind: str, value: Any) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AutoDL 多型号、多地区单卡等待工具")
+    language_parser = argparse.ArgumentParser(add_help=False)
+    language_parser.add_argument("--lang", choices=["zh", "en"], default="zh")
+    language_args, _ = language_parser.parse_known_args()
+    tr = Translator(language_args.lang)
+    parser = argparse.ArgumentParser(description=tr('AutoDL 多型号、多地区单卡等待工具'))
     parser.add_argument("command", nargs="?", choices=["gui", "catalog", "scan", "images", "plan", "watch", "rent", "state", "archive-state"], default="gui")
-    parser.add_argument("--max-price", help="可选：单卡每小时最高可接受价；不填按平台当前报价")
-    parser.add_argument("--gpus", help="型号名称，用英文逗号分隔；all 表示全部 GPU，CPU 需明确选中")
-    parser.add_argument("--min-vram", type=int, help="最低显存 GB，0 为不限")
-    parser.add_argument("--expand-disk", type=int, help="新增数据盘 GB；筛选可扩容量并实际扩容，0 为不扩容")
+    parser.add_argument("--lang", choices=["zh", "en"], default=language_args.lang,
+                        help=tr("界面与命令行语言：zh / en（默认中文）"))
+    parser.add_argument("--max-price", help=tr('可选：单卡每小时最高可接受价；不填按平台当前报价'))
+    parser.add_argument("--gpus", help=tr('型号名称，用英文逗号分隔；all 表示全部 GPU，CPU 需明确选中'))
+    parser.add_argument("--min-vram", type=int, help=tr('最低显存 GB，0 为不限'))
+    parser.add_argument("--expand-disk", type=int, help=tr('新增数据盘 GB；筛选可扩容量并实际扩容，0 为不扩容'))
     parser.add_argument("--strategy", choices=["price", "gpu_priority", "region_priority"])
     parser.add_argument("--image-platform", choices=["nvidia", "mthreads", "cpu"])
-    parser.add_argument("--interval", type=int, help="查询间隔秒数，至少 15")
-    parser.add_argument("--wait-minutes", type=int, help="最多等待分钟数")
-    parser.add_argument("--regions", help="官网地区名称 / 数据中心 / 机房代码，用英文逗号分隔")
-    parser.add_argument("--image", help="从 images 命令或控制台获取的镜像 UUID")
-    parser.add_argument("--image-cuda", help="所选 NVIDIA 镜像 CUDA 版本，例如 11.8 或 12.8")
-    parser.add_argument("--private-image", action="store_true", help="镜像是私有镜像")
-    parser.add_argument("--machine", help="plan 命令使用的主机 ID")
-    parser.add_argument("--execute", action="store_true", help="明确执行一次付费创建")
-    parser.add_argument("--checked-console", action="store_true", help="已核对控制台，可归档本地租卡记录")
-    parser.add_argument("--demo", action="store_true", help="GUI 演示数据，完全不联网")
-    parser.add_argument("--read-only", action="store_true", help="只读会话：禁止调用创建或实例修改接口")
+    parser.add_argument("--interval", type=int, help=tr('查询间隔秒数，至少 15'))
+    parser.add_argument("--wait-minutes", type=int, help=tr('最多等待分钟数'))
+    parser.add_argument("--regions", help=tr('官网地区名称 / 数据中心 / 机房代码，用英文逗号分隔'))
+    parser.add_argument("--image", help=tr('从 images 命令或控制台获取的镜像 UUID'))
+    parser.add_argument("--image-cuda", help=tr('所选 NVIDIA 镜像 CUDA 版本，例如 11.8 或 12.8'))
+    parser.add_argument("--private-image", action="store_true", help=tr('镜像是私有镜像'))
+    parser.add_argument("--machine", help=tr('plan 命令使用的主机 ID'))
+    parser.add_argument("--execute", action="store_true", help=tr('明确执行一次付费创建'))
+    parser.add_argument("--checked-console", action="store_true", help=tr('已核对控制台，可归档本地租卡记录'))
+    parser.add_argument("--demo", action="store_true", help=tr('GUI 演示数据，完全不联网'))
+    parser.add_argument("--read-only", action="store_true", help=tr('只读会话：禁止调用创建或实例修改接口'))
     args = parser.parse_args()
     try:
         settings = Settings.load()
@@ -913,39 +920,39 @@ def main() -> int:
             settings.image_kind = "private"
         if args.command == "gui":
             from .ui import run
-            run(settings, demo=args.demo, read_only=args.read_only)
+            run(settings, demo=args.demo, read_only=args.read_only, language=args.lang)
             return 0
         if args.command == "catalog":
             catalog = Catalog.refresh()
             print(json.dumps({"models": catalog.models, "regions": catalog.regions}, ensure_ascii=False, indent=2))
             return 0
         if args.demo:
-            raise QuickError("--demo 仅用于 GUI，不会执行真实租卡")
+            raise QuickError(tr('--demo 仅用于 GUI，不会执行真实租卡'))
         if args.read_only and args.command in ("rent", "archive-state"):
-            raise QuickError("只读测试模式禁止租卡或修改租卡记录")
+            raise QuickError(tr('只读测试模式禁止租卡或修改租卡记录'))
         if args.command == "state":
             print(json.dumps(RentalJournal().read(), ensure_ascii=False, indent=2))
             return 0
         if args.command == "archive-state":
             if not args.checked_console:
-                raise QuickError("请先在控制台核对实例，再加 --checked-console 归档；归档不会关机")
+                raise QuickError(tr('请先在控制台核对实例，再加 --checked-console 归档；归档不会关机'))
             with RentalJournal() as journal:
                 journal.archive()
-            print("本地记录已归档；实例状态由 AutoDL 控制台管理")
+            print(tr('本地记录已归档；实例状态由 AutoDL 控制台管理'))
             return 0
         settings.validate(renting=args.command in ("rent", "plan"))
         if not settings.regions:
             settings.regions = Catalog.load().resolve_regions(settings.region_groups)
         if args.command == "rent" and not args.execute:
-            raise QuickError("实际租卡需要 --execute；可先运行 scan、images 或 plan")
+            raise QuickError(tr('实际租卡需要 --execute；可先运行 scan、images 或 plan'))
         if args.command == "plan":
             if not args.machine:
-                raise QuickError("plan 需要 --machine 主机ID")
+                raise QuickError(tr('plan 需要 --machine 主机ID'))
             print(json.dumps(create_payload(args.machine, settings, "quick-rent-PREVIEW"), ensure_ascii=False, indent=2))
-            print("以上仅为预览，没有请求创建接口。实际执行前仍将重新查询报价。")
+            print(tr('以上仅为预览，没有请求创建接口。实际执行前仍将重新查询报价。'))
             return 0
-        api = AutoDL(os.environ.get("AUTODL_WEB_TOKEN") or getpass.getpass("AutoDL 网页 Token（本地输入，不回显）: "), read_only=args.read_only)
-        engine = Engine(api, print_event)
+        api = AutoDL(os.environ.get("AUTODL_WEB_TOKEN") or getpass.getpass(tr('AutoDL 网页 Token（本地输入，不回显）: ')), read_only=args.read_only)
+        engine = Engine(api, lambda kind, value: print_event(kind, tr(value) if kind == "log" else value))
         if args.command == "images":
             for image in api.images(settings.image_chip, settings.image_arch):
                 print(f"{image['uuid']}\t{image['label']}")
@@ -953,17 +960,17 @@ def main() -> int:
             rows = engine.discover(settings, threading.Event())
             for row in rows:
                 print(json.dumps(row.display(), ensure_ascii=False))
-            print("已自动加载剩余 GPU 的平台价格、硬件配置和兼容镜像；没有创建实例。")
+            print(tr('已自动加载剩余 GPU 的平台价格、硬件配置和兼容镜像；没有创建实例。'))
         elif args.command == "rent":
             print(json.dumps(engine.auto_wait(settings, threading.Event(), execute=True), ensure_ascii=False, indent=2))
         elif args.command == "watch":
             print(json.dumps(engine.auto_wait(settings, threading.Event()), ensure_ascii=False, indent=2))
         return 0
     except KeyboardInterrupt:
-        print("已中断；若已提交创建，请查看 state 和 AutoDL 控制台。")
+        print(tr('已中断；若已提交创建，请查看 state 和 AutoDL 控制台。'))
         return 130
     except (QuickError, OSError) as error:
-        print(f"提示：{error}")
+        print(tr('提示：{p0}', p0=error))
         return 1
 
 
