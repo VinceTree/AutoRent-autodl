@@ -19,6 +19,8 @@ from ..core import (AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT,
                           image_for_candidate)
 from ..catalog import Catalog
 from ..i18n import Translator
+from .theme import COLORS, configure_theme
+from .display import configure_window, enable_high_dpi, scale_layout
 
 STRATEGIES = {"先发现可用卡，页内低价优先": "price", "按型号勾选顺序": "gpu_priority", "按地区勾选顺序": "region_priority"}
 PLATFORMS = {"NVIDIA / CUDA": "nvidia", "摩尔线程 / MUSA": "mthreads", "CPU": "cpu"}
@@ -50,30 +52,22 @@ class App:
         self.model_order = list(settings.gpu_names)
         self.all_gpus = not bool(settings.gpu_names)
         root.title(self.tr('AutoDL Quick · 多型号抢卡') + (self.tr(' · 演示') if demo else self.tr(' · 只读测试') if read_only else ""))
-        root.geometry(f"1180x{min(980, root.winfo_screenheight() - 70)}")
-        root.minsize(980, 820)
-        root.configure(bg="#f3f5f8")
+        configure_window(root, 1180, 980, 980, 820)
+        root.configure(bg=COLORS["background"])
         root.protocol("WM_DELETE_WINDOW", self.close)
-        style = ttk.Style()
-        style.theme_use("clam")
-        for name in ("TFrame", "TLabelframe", "TLabel", "TCheckbutton"):
-            style.configure(name, background="#f3f5f8")
-        style.configure("TLabel", font=("Microsoft YaHei UI", 9))
-        style.configure("TLabelframe.Label", font=("Microsoft YaHei UI", 9, "bold"))
-        style.configure("TButton", font=("Microsoft YaHei UI", 9), padding=(8, 5))
-        style.configure("Accent.TButton", background="#3057d5", foreground="white")
-        style.map("Accent.TButton", background=[("active", "#2444ae"), ("disabled", "#aeb9d7")])
-        style.configure("Treeview", font=("Microsoft YaHei UI", 9), rowheight=25)
-        style.configure("Treeview.Heading", font=("Microsoft YaHei UI", 9, "bold"))
-        root.option_add("*Font", ("Microsoft YaHei UI", 9))
-        wrap = ttk.Frame(root, padding=16)
-        wrap.pack(fill="both", expand=True)
+        configure_theme(root)
+        shell = ttk.Frame(root, padding=16)
+        shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(1, weight=1)
+        wrap = ttk.Frame(shell)
+        wrap.grid(row=0, column=0, sticky="ew")
         header = ttk.Frame(wrap)
         header.pack(fill="x")
-        ttk.Label(header, text="AutoDL Quick", font=("Segoe UI", 22, "bold"), foreground="#17233d").pack(side="left")
-        ttk.Label(header, text=self.tr('多型号 · 多地区 · 每次只租一台单卡实例'), foreground="#52617b").pack(side="left", padx=20)
+        ttk.Label(header, text="AutoDL Quick", style="Heading.TLabel").pack(side="left")
+        ttk.Label(header, text=self.tr('多型号 · 多地区 · 每次只租一台单卡实例'), foreground=COLORS["muted"]).pack(side="left", padx=20)
         self.status = tk.StringVar(value=self.tr('只读测试：已禁止下单和实例操作') if read_only else self.tr('默认仅演练，选择能接受的型号和地区'))
-        ttk.Label(wrap, textvariable=self.status, foreground="#3057d5").pack(anchor="w", pady=(2, 8))
+        ttk.Label(wrap, textvariable=self.status, foreground=COLORS["accent"]).pack(anchor="w", pady=(2, 8))
 
         credentials = ttk.Frame(wrap)
         credentials.pack(fill="x", pady=(0, 8))
@@ -84,6 +78,30 @@ class App:
         ttk.Button(credentials, text=self.tr('获取方法'), command=self.token_help).pack(side="left")
         ttk.Button(credentials, text=self.tr('打开市场'), command=lambda: webbrowser.open("https://www.autodl.com/market/list")).pack(side="left", padx=(8, 0))
 
+        controls = ttk.Frame(shell)
+        controls.grid(row=1, column=0, sticky="nsew")
+        canvas = tk.Canvas(controls, highlightthickness=0, background=COLORS["background"], height=420)
+        canvas.pack(side="left", fill="both", expand=True)
+        control_scroll = ttk.Scrollbar(controls, command=canvas.yview)
+        control_scroll.pack(side="right", fill="y")
+        canvas.configure(yscrollcommand=control_scroll.set)
+        wrap = ttk.Frame(canvas, padding=(0, 0, 8, 0))
+        content_window = canvas.create_window((0, 0), window=wrap, anchor="nw")
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(content_window, width=event.width))
+        wrap.bind("<Configure>", lambda _: canvas.configure(scrollregion=canvas.bbox("all")))
+        def scroll_preferences(event):
+            widget = event.widget
+            if not isinstance(widget, tk.Misc):
+                return
+            if widget.winfo_class() in ("TCombobox", "TSpinbox", "Treeview"):
+                return
+            while widget is not None:
+                if widget == controls:
+                    canvas.yview_scroll(-int(event.delta / 120), "units")
+                    return
+                widget = widget.master
+        root.bind("<MouseWheel>", scroll_preferences, add="+")
+
         market = ttk.LabelFrame(wrap, text=self.tr('官网地区与型号'), padding=9)
         market.pack(fill="x")
         top = ttk.Frame(market)
@@ -92,7 +110,7 @@ class App:
         self.all_regions_check = ttk.Checkbutton(top, text=self.tr('全部公开地区'), variable=self.all_regions, command=self.select_all_regions)
         self.all_regions_check.pack(side="left")
         self.region_info = tk.StringVar()
-        ttk.Label(top, textvariable=self.region_info, foreground="#52617b").pack(side="left", padx=8)
+        ttk.Label(top, textvariable=self.region_info, foreground=COLORS["muted"]).pack(side="left", padx=8)
         self.catalog_button = ttk.Button(top, text=self.tr('刷新官网目录'), command=self.refresh_catalog)
         self.catalog_button.pack(side="right")
         self.stock_button = ttk.Button(top, text=self.tr('刷新地区库存'), command=self.schedule_stock)
@@ -111,7 +129,7 @@ class App:
             button.pack(side="left", padx=(6, 0))
             self.model_buttons.append(button)
         self.model_info = tk.StringVar()
-        ttk.Label(model_top, textvariable=self.model_info, foreground="#52617b").pack(side="left", padx=12)
+        ttk.Label(model_top, textvariable=self.model_info, foreground=COLORS["muted"]).pack(side="left", padx=12)
         self.search = tk.StringVar()
         self.search_entry = ttk.Entry(model_top, textvariable=self.search, width=22)
         self.search_entry.pack(side="right")
@@ -119,7 +137,7 @@ class App:
         self.search.trace_add("write", lambda *_: self.render_models())
         model_frame = ttk.Frame(market)
         model_frame.pack(fill="x")
-        self.model_table = ttk.Treeview(model_frame, columns=("selected", "model", "memory", "chip", "stock"), show="headings", height=5, selectmode="browse")
+        self.model_table = ttk.Treeview(model_frame, columns=("selected", "model", "memory", "chip", "stock"), style="Compact.Treeview", show="headings", height=5, selectmode="browse")
         for key, label, width in (("selected", self.tr('选择'), 45), ("model", self.tr('型号（点击切换；支持多选）'), 370), ("memory", self.tr('显存 GB'), 100), ("chip", self.tr('平台'), 120), ("stock", self.tr('已选地区空闲 / 总量'), 220)):
             self.model_table.heading(key, text=label)
             self.model_table.column(key, width=width, anchor="w")
@@ -148,7 +166,7 @@ class App:
         ttk.Label(form, text=self.tr('排序')).grid(row=1, column=0, sticky="w", pady=(7, 0))
         self.strategy_combo = ttk.Combobox(form, textvariable=self.strategy, values=list(self.strategies), state="readonly", width=29)
         self.strategy_combo.grid(row=1, column=1, columnspan=3, sticky="w", pady=(7, 0))
-        ttk.Label(form, text=self.tr('价格留空 = 按平台当前价；显存 0 = 不限'), foreground="#52617b").grid(row=1, column=4, columnspan=4, sticky="w", pady=(7, 0))
+        ttk.Label(form, text=self.tr('价格留空 = 按平台当前价；显存 0 = 不限'), foreground=COLORS["muted"]).grid(row=1, column=4, columnspan=4, sticky="w", pady=(7, 0))
         self.platform = tk.StringVar(value=next(k for k, v in self.platforms.items() if v == settings.image_chip))
         self.active_platform = settings.image_chip
         self.platform_combo = ttk.Combobox(form, textvariable=self.platform, values=list(self.platforms), state="readonly", width=20)
@@ -169,18 +187,20 @@ class App:
         self.kind_combo = ttk.Combobox(form, textvariable=self.image_kind, values=["base", "private"], state="readonly", width=9)
         self.kind_combo.grid(row=3, column=2, sticky="w", pady=(7, 0))
         self.profile_info = tk.StringVar()
-        ttk.Label(form, textvariable=self.profile_info, foreground="#52617b").grid(row=3, column=3, columnspan=4, sticky="w", pady=(7, 0))
+        ttk.Label(form, textvariable=self.profile_info, foreground=COLORS["muted"]).grid(row=3, column=3, columnspan=4, sticky="w", pady=(7, 0))
         self.model_image_button = ttk.Button(form, text=self.tr('型号专用镜像'), command=self.model_image_dialog)
         self.model_image_button.grid(row=3, column=7, sticky="e", pady=(7, 0))
         ttk.Label(form, text=self.tr('扩容数据盘 GB')).grid(row=4, column=0, sticky="w", pady=(7, 0))
         disk_entry = ttk.Entry(form, textvariable=self.disk, width=9)
         disk_entry.grid(row=4, column=1, sticky="w", pady=(7, 0))
         self.editable.append(disk_entry)
-        ttk.Label(form, text=self.tr('填新增容量，0 不扩容；容量不足不租用，数据盘按日单独计费'), foreground="#52617b").grid(row=4, column=2, columnspan=6, sticky="w", pady=(7, 0))
+        ttk.Label(form, text=self.tr('填新增容量，0 不扩容；容量不足不租用，数据盘按日单独计费'), foreground=COLORS["muted"]).grid(row=4, column=2, columnspan=6, sticky="w", pady=(7, 0))
         form.columnconfigure(5, weight=1)
         self.update_profile_info()
 
-        actions = ttk.Frame(wrap)
+        command_panel = ttk.Frame(shell)
+        command_panel.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        actions = ttk.Frame(command_panel)
         actions.pack(fill="x", pady=(0, 5))
         self.scan_button = ttk.Button(actions, text=self.tr('查询空闲主机'), command=self.scan)
         self.scan_button.pack(side="left")
@@ -196,11 +216,11 @@ class App:
         self.save_button = ttk.Button(actions, text=self.tr('保存条件'), command=self.save)
         self.save_button.pack(side="right")
         self.mode_changed()
-        ttk.Label(wrap, text=self.tr('默认仅演练。镜像按平台分别保存；真实租用只选择镜像匹配的卡。成功一台即停止。'), foreground="#52617b").pack(anchor="w", pady=(0, 5))
+        ttk.Label(command_panel, text=self.tr('默认仅演练。镜像按平台分别保存；真实租用只选择镜像匹配的卡。成功一台即停止。'), foreground=COLORS["muted"]).pack(anchor="w", pady=(0, 5))
 
-        table_wrap = ttk.Frame(wrap)
-        table_wrap.pack(fill="both", expand=True)
-        self.table = ttk.Treeview(table_wrap, columns=("machine", "region", "gpu", "idle", "cuda", "price"), show="headings", height=4)
+        table_wrap = ttk.Frame(shell)
+        table_wrap.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        self.table = ttk.Treeview(table_wrap, columns=("machine", "region", "gpu", "idle", "cuda", "price"), style="Compact.Treeview", show="headings", height=4)
         for key, label, width in (("machine", self.tr('主机 ID'), 185), ("region", self.tr('地区'), 130), ("gpu", self.tr('型号'), 210), ("idle", self.tr('空闲卡'), 65), ("cuda", self.tr('最高 CUDA'), 95), ("price", self.tr('平台价 / 小时'), 140)):
             self.table.heading(key, text=label)
             self.table.column(key, width=width, anchor="w")
@@ -208,8 +228,11 @@ class App:
         self.table.configure(yscrollcommand=table_scroll.set)
         self.table.pack(side="left", fill="both", expand=True)
         table_scroll.pack(side="right", fill="y")
-        self.log = scrolledtext.ScrolledText(wrap, height=4, wrap="word", bg="#152036", fg="#dce5f6", relief="flat", font=("Microsoft YaHei UI", 9), state="disabled")
-        self.log.pack(side="bottom", fill="x", pady=(7, 0), before=table_wrap)
+        log_wrap = ttk.Frame(shell)
+        log_wrap.grid(row=4, column=0, sticky="ew", pady=(7, 0))
+        self.log = scrolledtext.ScrolledText(log_wrap, height=4, wrap="word", bg=COLORS["surface"], fg=COLORS["muted"], relief="flat", font="TkTextFont", state="disabled")
+        self.log.pack(fill="x")
+        scale_layout(root)
         self.write_log(self.tr('演示模式：示例数据，完全不联网。') if demo else self.tr('目录包含 {p0} 个型号、{p1} 个地区分组。Token 只留在当前窗口。', p0=len(self.catalog.models), p1=len(self.catalog.regions)))
         if demo:
             self.price.set("4.00")
@@ -365,7 +388,7 @@ class App:
                     kind.set(profile.get("kind", "base"))
                 widget.bind("<<ComboboxSelected>>", load)
         frame.columnconfigure(1, weight=1)
-        ttk.Label(frame, text=self.tr('此配置优先于平台通用镜像；UUID 留空可移除专用配置。'), foreground="#52617b").grid(row=4, column=0, columnspan=2, sticky="w", pady=10)
+        ttk.Label(frame, text=self.tr('此配置优先于平台通用镜像；UUID 留空可移除专用配置。'), foreground=COLORS["muted"]).grid(row=4, column=0, columnspan=2, sticky="w", pady=10)
         def apply():
             key = "gpu:" + name.get()
             if value.get().strip():
@@ -672,6 +695,7 @@ class App:
 
 
 def run(settings=None, demo=False, read_only=False, language="zh"):
+    enable_high_dpi()
     root = tk.Tk()
     app = App(root, settings or Settings(), demo=demo, read_only=read_only, language=language)
     if not demo:
