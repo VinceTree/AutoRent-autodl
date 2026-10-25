@@ -1,0 +1,413 @@
+{
+  "regions": [
+    {
+      "id": "westDC3",
+      "name": "西北B区",
+      "signs": [
+        "west-B",
+        "west-C",
+        "west-D",
+        "west-E"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "beijingDC2",
+      "name": "北京B区",
+      "signs": [
+        "bj-B1",
+        "bj-B2",
+        "bj-B3"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "chongqingDC1",
+      "name": "重庆A区",
+      "signs": [
+        "cq-A1"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "neimengDC3",
+      "name": "内蒙B区",
+      "signs": [
+        "nm-B1",
+        "nm-B2"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "beijingDC1",
+      "name": "北京A区",
+      "signs": [
+        "beijing-A",
+        "beijing-B",
+        "beijing-D",
+        "beijing-E"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "foshanDC1",
+      "name": "佛山区",
+      "signs": [
+        "foshan-A"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "beijingDC3",
+      "name": "V100专区",
+      "signs": [
+        "beijing-C"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "special"
+    },
+    {
+      "id": "neimengDC2",
+      "name": "A800专区",
+      "signs": [
+        "nm-A1"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "special"
+    },
+    {
+      "id": "westDC2",
+      "name": "西北企业区",
+      "signs": [
+        "west-X"
+      ],
+      "visible": "enterprise",
+      "used_for": "all",
+      "kind": "normal"
+    },
+    {
+      "id": "shanghaiDC1",
+      "name": "摩尔线程专区",
+      "signs": [
+        "sh-A1"
+      ],
+      "visible": "all",
+      "used_for": "all",
+      "kind": "special"
+    }
+  ],
+  "models": [
+    {
+      "name": "vGPU-32GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 32.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 29200
+    },
+    {
+      "name": "RTX 5090",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 32.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 20000
+    },
+    {
+      "name": "RTX PRO 6000",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 96.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 19202
+    },
+    {
+      "name": "A800-80GB-NVLink",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 80.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 19201
+    },
+    {
+      "name": "RTX 6000D",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 84.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 19201
+    },
+    {
+      "name": "PRO 6000 Max-Q",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 96.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 19200
+    },
+    {
+      "name": "vGPU-48GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 48.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 19198
+    },
+    {
+      "name": "vGPU-48GB-425W",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 48.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 19195
+    },
+    {
+      "name": "RTX 5090 D",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 32.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 19190
+    },
+    {
+      "name": "RTX PRO 5000",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 72.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Blackwell",
+      "rank": 19000
+    },
+    {
+      "name": "H20-NVLink",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 96.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 10000
+    },
+    {
+      "name": "H800",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 80.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 2000
+    },
+    {
+      "name": "RTX 4090D",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 24.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 202
+    },
+    {
+      "name": "RTX 4090",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 24.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ada",
+      "rank": 200
+    },
+    {
+      "name": "RTX 3090",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 24.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 150
+    },
+    {
+      "name": "RTX 3080 Ti",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 12.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 149
+    },
+    {
+      "name": "RTX 3080x2",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 20.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 148
+    },
+    {
+      "name": "A100-PCIE-40GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 40.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 132
+    },
+    {
+      "name": "V100-32GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 32.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Volta",
+      "rank": 131
+    },
+    {
+      "name": "A800-80GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 80.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 131
+    },
+    {
+      "name": "V100-SXM2-32GB",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 32.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Volta",
+      "rank": 125
+    },
+    {
+      "name": "RTX 2080 Ti",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 11.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Turing",
+      "rank": 93
+    },
+    {
+      "name": "RTX 3080",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 10.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 92
+    },
+    {
+      "name": "RTX A4000",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 16.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 90
+    },
+    {
+      "name": "RTX 3060",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 12.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 80
+    },
+    {
+      "name": "GTX 1080 Ti",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 11.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Pascal",
+      "rank": 50
+    },
+    {
+      "name": "Tesla T4",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 16.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Turing",
+      "rank": 10
+    },
+    {
+      "name": "MTT S4000",
+      "chip": "mthreads",
+      "arch": "x86",
+      "memory_gb": 48.0,
+      "is_cpu": false,
+      "series": "S",
+      "rank": 10
+    },
+    {
+      "name": "CPU",
+      "chip": "cpu",
+      "arch": "x86",
+      "memory_gb": 0.0,
+      "is_cpu": true,
+      "series": "CPU",
+      "rank": 2
+    },
+    {
+      "name": "RTX 2080 Ti x2",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 22.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Turing",
+      "rank": 2
+    },
+    {
+      "name": "CPU-close-HT",
+      "chip": "cpu",
+      "arch": "x86",
+      "memory_gb": 1.0,
+      "is_cpu": true,
+      "series": "CPU",
+      "rank": 2
+    },
+    {
+      "name": "TITAN Xp",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 12.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Pascal",
+      "rank": 1
+    },
+    {
+      "name": "vGPU-48GB-350W",
+      "chip": "nvidia",
+      "arch": "x86",
+      "memory_gb": 48.0,
+      "is_cpu": false,
+      "series": "NVIDIA-Ampere",
+      "rank": 1
+    }
+  ],
+  "updated_at": "2026-10-25T19:20:21.288390+08:00"
+}

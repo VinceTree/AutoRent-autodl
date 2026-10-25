@@ -1,0 +1,19 @@
+{
+  "max_price": "",
+  "poll_seconds": 30,
+  "wait_minutes": 30,
+  "regions": [],
+  "image_uuid": "",
+  "image_kind": "base",
+  "image_cuda": "",
+  "min_cuda": "",
+  "gpu_names": [],
+  "region_groups": [],
+  "min_vram_gb": 0,
+  "strategy": "price",
+  "image_chip": "nvidia",
+  "image_arch": "x86",
+  "image_profiles": {},
+  "auto_image": true,
+  "expand_disk_gb": 0
+}
