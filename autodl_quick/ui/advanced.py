@@ -14,10 +14,10 @@ from tkinter import messagebox, scrolledtext, ttk
 import time
 import webbrowser
 
-from autodl_quick import (AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT,
+from ..core import (AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT,
                           RentalJournal, Settings, atomic_json, create_payload,
                           image_for_candidate)
-from market_catalog import Catalog
+from ..catalog import Catalog
 
 STRATEGIES = {"先发现可用卡，页内低价优先": "price", "按型号勾选顺序": "gpu_priority", "按地区勾选顺序": "region_priority"}
 PLATFORMS = {"NVIDIA / CUDA": "nvidia", "摩尔线程 / MUSA": "mthreads", "CPU": "cpu"}

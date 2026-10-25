@@ -8,14 +8,14 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from autodl_quick import AutoDL, Settings
+from autodl_quick.core import AutoDL, Settings
 
 
 @unittest.skipUnless(sys.platform == "win32" or os.environ.get("DISPLAY"), "GUI requires a display")
 class WindowTests(unittest.TestCase):
     def setUp(self):
         import tkinter as tk
-        from market_gui import App
+        from autodl_quick.ui.advanced import App
         self.root = tk.Tk()
         self.root.withdraw()
         self.app = App(self.root, Settings(max_price="4"))
@@ -46,7 +46,7 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.app.get_settings().region_groups, ["westDC3", "beijingDC2"])
 
     def test_empty_region_selection_cannot_become_unrestricted(self):
-        from autodl_quick import QuickError
+        from autodl_quick.core import QuickError
         self.app.all_regions.set(False)
         self.app.select_all_regions()
         with self.assertRaises(QuickError):
@@ -67,7 +67,7 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.app.model_table.item("MTT S4000", "values")[0], "☑")
 
     def test_cleared_model_selection_cannot_become_all_gpu(self):
-        from autodl_quick import QuickError
+        from autodl_quick.core import QuickError
         self.app.clear_gpus()
         with self.assertRaises(QuickError):
             self.app.get_settings()
@@ -97,7 +97,7 @@ class WindowTests(unittest.TestCase):
         api.quote.return_value = Decimal("3.50")
         api.online.return_value = True
         api.machine_batches.side_effect = lambda s, c: [api.machines(s, c)]
-        with patch("market_gui.AutoDL", return_value=api):
+        with patch("autodl_quick.ui.advanced.AutoDL", return_value=api):
             self.app.rent()
             deadline = time.monotonic() + 5
             while self.app.busy and time.monotonic() < deadline:
@@ -109,7 +109,7 @@ class WindowTests(unittest.TestCase):
 
     def test_demo_display_cannot_access_network(self):
         self.app.demo = True
-        with patch("market_gui.AutoDL") as api:
+        with patch("autodl_quick.ui.advanced.AutoDL") as api:
             self.app.scan()
         api.assert_not_called()
         self.app.drain()

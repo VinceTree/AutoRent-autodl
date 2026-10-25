@@ -12,8 +12,8 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 import webbrowser
 
-from autodl_quick import AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT, Settings, atomic_json
-from market_catalog import Catalog
+from ..core import AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT, Settings, atomic_json
+from ..catalog import Catalog
 
 ALL_REGIONS = "全部公开地区"
 ALL_GPUS = "全部 GPU 型号"
@@ -379,7 +379,7 @@ class App:
                          f"自动镜像：{card.image_label or '未找到兼容镜像'}  {card.image_uuid}")
 
     def advanced(self):
-        from market_gui import App as AdvancedApp
+        from .advanced import App as AdvancedApp
         window = tk.Toplevel(self.root)
         editor = AdvancedApp(window, self.settings(), read_only=True)
         editor.token.set(self.token.get())

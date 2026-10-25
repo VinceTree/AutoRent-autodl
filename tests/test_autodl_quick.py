@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
-from autodl_quick import (AutoDL, APIError, Cancelled, CreateUncertain, Engine,
+from autodl_quick.core import (AutoDL, APIError, Cancelled, CreateUncertain, Engine,
                           LoginRequired, QuickError, ReadUnavailable, RentalJournal,
                           SameOriginRedirect, Settings, amount, candidates,
                           create_payload, exact_gpu)
@@ -281,7 +281,7 @@ class APITests(unittest.TestCase):
 
     def test_timeout_query_can_retry(self):
         self.api.opener.open = MagicMock(side_effect=TimeoutError())
-        with patch("autodl_quick.time.sleep"), self.assertRaises(ReadUnavailable):
+        with patch("autodl_quick.core.time.sleep"), self.assertRaises(ReadUnavailable):
             self.api.quote("test-host")
         self.assertEqual(self.api.opener.open.call_count, 3)
 

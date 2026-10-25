@@ -10,7 +10,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from autodl_quick import (AutoDL, Engine, GIB, PriceQuote, QuickError, RentalJournal,
+from autodl_quick.core import (AutoDL, Engine, GIB, PriceQuote, QuickError, RentalJournal,
                           Settings, candidates, create_payload, price_payload)
 from test_autodl_quick import host
 from test_finder import api_fixture
@@ -142,7 +142,7 @@ class DiskEngineTests(unittest.TestCase):
 class DiskWindowTests(unittest.TestCase):
     def setUp(self):
         import tkinter as tk
-        from finder_gui import App
+        from autodl_quick.ui.main import App
         self.root = tk.Tk()
         self.root.withdraw()
         self.app = App(self.root, read_only=True)
@@ -159,7 +159,7 @@ class DiskWindowTests(unittest.TestCase):
 
     def test_invalid_capacity_does_not_start_query(self):
         self.app.disk.set("-100")
-        with patch("finder_gui.AutoDL") as api, patch("finder_gui.messagebox.showerror") as message:
+        with patch("autodl_quick.ui.main.AutoDL") as api, patch("autodl_quick.ui.main.messagebox.showerror") as message:
             self.app.scan()
         api.assert_not_called()
         message.assert_called_once()
@@ -169,7 +169,7 @@ class DiskWindowTests(unittest.TestCase):
         self.app.disk.set("100")
         self.app.token.set("fake-test-token")
         api = disk_api()
-        with tempfile.TemporaryDirectory() as temp, patch("finder_gui.AutoDL", return_value=api), patch("finder_gui.ROOT", Path(temp)), patch("finder_gui.Catalog.refresh", return_value=self.app.catalog):
+        with tempfile.TemporaryDirectory() as temp, patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Catalog.refresh", return_value=self.app.catalog):
             self.app.scan()
             self.assertIn("disabled", self.app.disk_entry.state())
             deadline = time.monotonic() + 5
@@ -186,7 +186,7 @@ class DiskWindowTests(unittest.TestCase):
 
     def test_advanced_editor_preserves_disk_choice(self):
         import tkinter as tk
-        from market_gui import App
+        from autodl_quick.ui.advanced import App
         window = tk.Toplevel(self.root)
         window.withdraw()
         editor = App(window, Settings(expand_disk_gb=100), read_only=True)

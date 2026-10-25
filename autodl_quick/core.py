@@ -25,10 +25,10 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from market_catalog import Catalog, parse_region_stock
+from .catalog import Catalog, parse_region_stock
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 BASE_URL = "https://www.autodl.com"
 GPU_NAME = "RTX 5090"
 MILLI = Decimal(1000)
@@ -912,7 +912,7 @@ def main() -> int:
         if args.private_image:
             settings.image_kind = "private"
         if args.command == "gui":
-            from gui import run
+            from .ui import run
             run(settings, demo=args.demo, read_only=args.read_only)
             return 0
         if args.command == "catalog":

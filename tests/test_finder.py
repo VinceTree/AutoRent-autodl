@@ -8,7 +8,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from autodl_quick import AutoDL, Engine, RentalJournal, Settings
+from autodl_quick.core import AutoDL, Engine, RentalJournal, Settings
 from test_autodl_quick import host
 
 
@@ -106,7 +106,7 @@ class FinderEngineTests(unittest.TestCase):
 class FinderWindowTests(unittest.TestCase):
     def setUp(self):
         import tkinter as tk
-        from finder_gui import App
+        from autodl_quick.ui.main import App
         self.root = tk.Tk()
         self.root.withdraw()
         self.app = App(self.root, Settings(), read_only=True)
@@ -189,7 +189,7 @@ class FinderWindowTests(unittest.TestCase):
         self.app.region_changed()
         self.app.token.set("fake-test-token")
         api = api_fixture()
-        with patch("finder_gui.AutoDL", return_value=api) as constructor:
+        with patch("autodl_quick.ui.main.AutoDL", return_value=api) as constructor:
             self.app.refresh_stock()
             deadline = time.monotonic() + 3
             while self.app.stock is None and time.monotonic() < deadline:
@@ -207,7 +207,7 @@ class FinderWindowTests(unittest.TestCase):
         self.assertIsNone(self.app.stock)
 
     def test_read_only_window_cannot_rent_even_through_direct_callback(self):
-        with patch("finder_gui.AutoDL") as api:
+        with patch("autodl_quick.ui.main.AutoDL") as api:
             self.app.rent_button.invoke()
             self.app.rent()
         api.assert_not_called()
@@ -216,7 +216,7 @@ class FinderWindowTests(unittest.TestCase):
 
     def test_normal_window_rents_only_after_explicit_rent_button_click(self):
         import tkinter as tk
-        from finder_gui import App
+        from autodl_quick.ui.main import App
         window = tk.Toplevel(self.root)
         window.withdraw()
         app = App(window, Settings())
@@ -235,7 +235,7 @@ class FinderWindowTests(unittest.TestCase):
                 self.root.update()
                 time.sleep(0.01)
             self.assertFalse(app.busy)
-        with tempfile.TemporaryDirectory() as temp, patch("finder_gui.AutoDL", return_value=api), patch("finder_gui.ROOT", Path(temp)), patch("finder_gui.Catalog.refresh", return_value=app.catalog), patch("finder_gui.Engine", side_effect=lambda client, emit: Engine(client, emit, journal=RentalJournal(Path(temp) / "rental"))):
+        with tempfile.TemporaryDirectory() as temp, patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Catalog.refresh", return_value=app.catalog), patch("autodl_quick.ui.main.Engine", side_effect=lambda client, emit: Engine(client, emit, journal=RentalJournal(Path(temp) / "rental"))):
             api.create.assert_not_called()
             app.scan_button.invoke()
             finish()
@@ -261,7 +261,7 @@ class FinderWindowTests(unittest.TestCase):
     def test_busy_window_does_not_start_another_job(self):
         self.app.busy = True
         try:
-            with patch("finder_gui.AutoDL") as api:
+            with patch("autodl_quick.ui.main.AutoDL") as api:
                 self.app.scan()
             api.assert_not_called()
         finally:
@@ -270,7 +270,7 @@ class FinderWindowTests(unittest.TestCase):
     def test_scan_automatically_displays_first_card_details_without_choice(self):
         api = api_fixture()
         self.app.token.set("fake-test-token")
-        with tempfile.TemporaryDirectory() as temp, patch("finder_gui.AutoDL", return_value=api), patch("finder_gui.ROOT", Path(temp)), patch("finder_gui.Catalog.refresh", return_value=self.app.catalog):
+        with tempfile.TemporaryDirectory() as temp, patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Catalog.refresh", return_value=self.app.catalog):
             self.app.scan()
             deadline = time.monotonic() + 5
             while self.app.busy and time.monotonic() < deadline:

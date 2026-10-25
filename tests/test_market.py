@@ -7,9 +7,9 @@ import threading
 import unittest
 from unittest.mock import MagicMock
 
-from autodl_quick import (APIError, AutoDL, Candidate, Engine, Settings, RentalJournal,
+from autodl_quick.core import (APIError, AutoDL, Candidate, Engine, Settings, RentalJournal,
                           candidates, image_for_candidate)
-from market_catalog import Catalog, parse_region_stock
+from autodl_quick.catalog import Catalog, parse_region_stock
 from test_autodl_quick import host, settings
 
 

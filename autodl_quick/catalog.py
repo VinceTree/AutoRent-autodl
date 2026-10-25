@@ -7,8 +7,9 @@ import json
 from pathlib import Path
 import urllib.request
 
-ROOT = Path(__file__).resolve().parent
-CACHE = ROOT / "market-catalog.json"
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLED_CATALOG = Path(__file__).resolve().parent / "data" / "market-catalog.json"
+CACHE = ROOT / ".state" / "market-catalog.json"
 
 
 @dataclass
@@ -44,12 +45,16 @@ class Catalog:
         return cls(list(groups.values()), models, datetime.now().astimezone().isoformat())
 
     @classmethod
-    def load(cls, path: Path = CACHE) -> "Catalog":
+    def load(cls, path: Path | None = None) -> "Catalog":
+        if path is None:
+            path = CACHE if CACHE.exists() else BUNDLED_CATALOG
         data = json.loads(path.read_text(encoding="utf-8"))
         return cls(data["regions"], data["models"], data.get("updated_at", ""))
 
     @classmethod
-    def refresh(cls, path: Path = CACHE) -> "Catalog":
+    def refresh(cls, path: Path | None = None) -> "Catalog":
+        if path is None:
+            path = CACHE
         responses = []
         for endpoint in ("/api/v1/region/list", "/api/v1/machine/gpu_type"):
             request = urllib.request.Request("https://www.autodl.com" + endpoint,
@@ -62,7 +67,7 @@ class Catalog:
         catalog = cls.from_responses(*responses)
         if not catalog.regions or not catalog.models:
             raise ValueError("目录为空，保留上一次目录")
-        from autodl_quick import atomic_json
+        from .core import atomic_json
         atomic_json(path, {"regions": catalog.regions, "models": catalog.models, "updated_at": catalog.updated_at})
         return catalog
 
