@@ -22,7 +22,8 @@ class NativeDisplayTests(unittest.TestCase):
             def measure(root, app, label):
                 root.update()
                 bottom = root.winfo_rooty() + root.winfo_height()
-                widgets = (app.rent_button, app.scan_button, app.wait_button, app.stop_button, app.log)
+                widgets = (app.rent_button, app.scan_button, app.wait_button, app.stop_button, app.log,
+                           app.language_switch.zh_button, app.language_switch.en_button)
                 results.append({
                     "label": label,
                     "scale": app.display_scale,
@@ -52,6 +53,8 @@ class NativeDisplayTests(unittest.TestCase):
                     root.tk.call("tk", "scaling", dpi / 72)
                     app = App(root, demo=True, language=language)
                     try:
+                        app.set_language("en" if language == "zh" else "zh")
+                        app.set_language(language)
                         measure(root, app, f"{dpi}/{language}")
                     finally:
                         app.close()

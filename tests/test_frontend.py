@@ -28,7 +28,8 @@ class FrontendTests(unittest.TestCase):
                     window.geometry("1040x740")
                     window.update()
                     bottom = window.winfo_rooty() + window.winfo_height()
-                    for widget in (app.scan_button, app.wait_button, app.rent_button, app.stop_button, app.log):
+                    for widget in (app.scan_button, app.wait_button, app.rent_button, app.stop_button, app.log,
+                                   app.language_switch.zh_button, app.language_switch.en_button):
                         self.assertTrue(widget.winfo_ismapped())
                         self.assertGreaterEqual(widget.winfo_rooty(), window.winfo_rooty())
                         self.assertLessEqual(widget.winfo_rooty() + widget.winfo_height(), bottom)

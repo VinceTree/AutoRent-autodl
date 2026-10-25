@@ -76,6 +76,10 @@ def configure_theme(root):
               bordercolor=[("disabled", "#d7e5e4"), ("!disabled", COLORS["accent"])])
     style.configure("Quiet.TButton", borderwidth=0, background=COLORS["surface"], foreground=COLORS["accent"], padding=spacing(4, 4), font=(face, 10))
     style.configure("Stop.TButton", foreground=COLORS["error"])
+    style.configure("Language.TButton", background=COLORS["background"], foreground=COLORS["muted"],
+                    borderwidth=0, width=4, font=(face, 10), padding=spacing(6, 5))
+    style.configure("Selected.Language.TButton", background=COLORS["accent_soft"], foreground=COLORS["accent"], font=(face, 10, "bold"))
+    style.map("Selected.Language.TButton", background=[("active", COLORS["accent_soft"]), ("!active", COLORS["accent_soft"])])
     for name in ("TEntry", "TCombobox", "TSpinbox"):
         style.configure(name, fieldbackground=COLORS["surface"], background=COLORS["subtle"],
                         foreground=COLORS["ink"], padding=spacing(9, 7), borderwidth=round(scale),

@@ -16,6 +16,7 @@ cd AutoRent-autodl
 .\start.cmd -Lang en
 ```
 
+- **Language switch:** click **中文 | en** at the top of the window. Your Token, preferences, results and active search stay in place; open advanced preferences switch too. New sessions default to Chinese unless started with `-Lang en`.
 - **English:** `start.cmd -Lang en`. **Chinese:** `start.cmd -Lang zh`; double-clicking `start.cmd` also defaults to Chinese.
 - **Read-only:** `start.cmd -Lang en -ReadOnly`. The transport blocks creation, payment, power changes and release operations.
 - **Offline demo:** `start.cmd -Lang en -Demo`. Uses sample data and sends no network requests.

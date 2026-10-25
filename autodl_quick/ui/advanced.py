@@ -18,7 +18,7 @@ from ..core import (AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT,
                           RentalJournal, Settings, atomic_json, create_payload,
                           image_for_candidate)
 from ..catalog import Catalog
-from ..i18n import Translator
+from .localization import LanguageSwitch, LiveTranslator, localize_widgets
 from .theme import COLORS, configure_theme
 from .display import configure_window, enable_high_dpi, scale_layout
 
@@ -27,10 +27,10 @@ PLATFORMS = {"NVIDIA / CUDA": "nvidia", "摩尔线程 / MUSA": "mthreads", "CPU"
 
 
 class App:
-    def __init__(self, root: tk.Tk, settings: Settings, demo: bool = False, read_only: bool = False, language="zh"):
+    def __init__(self, root: tk.Tk, settings: Settings, demo: bool = False, read_only: bool = False, language="zh", on_language_change=None):
         self.root, self.settings, self.demo, self.read_only = root, settings, demo, read_only
         self.language = language
-        self.tr = Translator(language)
+        self.tr = LiveTranslator(language)
         self.strategies = {self.tr(label): value for label, value in STRATEGIES.items()}
         self.platforms = {self.tr(label): value for label, value in PLATFORMS.items()}
         self.catalog = Catalog.load()
@@ -64,6 +64,8 @@ class App:
         wrap.grid(row=0, column=0, sticky="ew")
         header = ttk.Frame(wrap)
         header.pack(fill="x")
+        self.language_switch = LanguageSwitch(header, language, on_language_change or self.set_language)
+        self.language_switch.pack(side="right")
         ttk.Label(header, text="AutoDL Quick", style="Heading.TLabel").pack(side="left")
         ttk.Label(header, text=self.tr('多型号 · 多地区 · 每次只租一台单卡实例'), foreground=COLORS["muted"]).pack(side="left", padx=20)
         self.status = tk.StringVar(value=self.tr('只读测试：已禁止下单和实例操作') if read_only else self.tr('默认仅演练，选择能接受的型号和地区'))
@@ -238,6 +240,18 @@ class App:
             self.price.set("4.00")
             self.demo_rows()
         self._timer = root.after(100, self.drain)
+
+    def set_language(self, language):
+        if language == self.language:
+            return
+        if language not in ("zh", "en"):
+            raise ValueError("Language must be zh or en")
+        self.language = self.tr.language = language
+        localize_widgets(self.root, self.tr)
+        self.strategies = {self.tr(label): value for label, value in STRATEGIES.items()}
+        self.platforms = {self.tr(label): value for label, value in PLATFORMS.items()}
+        self.root.title(self.tr('AutoDL Quick · 多型号抢卡') + (self.tr(' · 演示') if self.demo else self.tr(' · 只读测试') if self.read_only else ""))
+        self.language_switch.select(language)
 
     def render_regions(self):
         for widget in self.region_frame.winfo_children():

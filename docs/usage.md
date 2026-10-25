@@ -18,6 +18,7 @@ cd AutoRent-autodl
 
 ## 打开与登录
 
+- 窗口顶部“中文 | en”：即时切换界面语言，保留 Token、筛选条件、查询结果和正在进行的任务；高级偏好窗口同步切换。重新打开默认中文，除非启动时指定 `-Lang en`。
 - `scripts/start-readonly.cmd`：只读测试，网络层禁止创建、支付、开关机、释放实例。
 - `start.cmd`：正常窗口，显示独立的“开始自动租卡（计费）”按钮；打开窗口不会自动下单。
 - `start.cmd -Lang en`：英文界面；`start.cmd -Lang zh`：中文界面。只读与演示开关可组合，例如 `start.cmd -Lang en -ReadOnly`。命令行同样支持 `--lang en`。地区名称和型号标识保持官网原名，不翻译 API 参数。

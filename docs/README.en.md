@@ -6,7 +6,7 @@ A local Windows tool for finding and renting AutoDL GPUs. Choose a region, GPU m
 
 ![English interface — offline demo data](images/preview.en.png)
 
-The application, CLI and repository homepage default to Chinese. English is opt-in through `-Lang en` or `--lang en`.
+The application, CLI and repository homepage default to Chinese. Click **中文 | en** at the top of the window to switch languages while keeping your Token, preferences and results. You can also start in English with `-Lang en` or `--lang en`.
 
 ## Quick start
 

@@ -14,7 +14,7 @@ import webbrowser
 
 from ..core import AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT, Settings, atomic_json
 from ..catalog import Catalog
-from ..i18n import Translator
+from .localization import LanguageSwitch, LiveTranslator, localize_widgets
 from .theme import COLORS, configure_theme, wrapped_label
 from .display import configure_window, display_scale, enable_high_dpi, scale_layout
 
@@ -28,7 +28,8 @@ class App:
     def __init__(self, root, settings=None, demo=False, read_only=False, language="zh"):
         self.root, self.demo, self.read_only = root, demo, read_only
         self.language = language
-        self.tr = Translator(language)
+        self.tr = LiveTranslator(language)
+        self.advanced_editors = []
         self.all_regions_label = self.tr(ALL_REGIONS)
         self.all_gpus_label = self.tr(ALL_GPUS)
         self.custom_regions_label = self.tr(CUSTOM_REGIONS)
@@ -85,6 +86,8 @@ class App:
         titles.pack(side="left")
         ttk.Label(titles, text=self.tr('AutoDL 自动找卡'), style="Heading.TLabel").pack(anchor="w")
         ttk.Label(titles, text=self.tr('选好算力，让工具替你等待。'), style="Muted.TLabel").pack(anchor="w", pady=(3, 0))
+        self.language_switch = LanguageSwitch(header, self.language, self.set_language)
+        self.language_switch.pack(side="right", padx=(16, 0))
         ttk.Button(header, text=self.tr('打开市场'), command=lambda: webbrowser.open("https://www.autodl.com/market/list")).pack(side="right")
         mode = self.tr('离线演示') if self.demo else self.tr('只读模式') if self.read_only else self.tr('本地运行')
         ttk.Label(header, text=mode, style="Warning.Badge.TLabel" if self.demo or self.read_only else "Ready.Badge.TLabel").pack(side="right", padx=16)
@@ -347,6 +350,25 @@ class App:
         self.root.clipboard_append(self.details.get())
         self.copy_button.configure(text=self.tr('已复制'))
 
+    def set_language(self, language):
+        if language == self.language:
+            return
+        if language not in ("zh", "en"):
+            raise ValueError("Language must be zh or en")
+        self.language = self.tr.language = language
+        localize_widgets(self.root, self.tr)
+        self.all_regions_label = self.tr(ALL_REGIONS)
+        self.all_gpus_label = self.tr(ALL_GPUS)
+        self.custom_regions_label = self.tr(CUSTOM_REGIONS)
+        self.custom_gpus_label = self.tr(CUSTOM_GPUS)
+        if self.table.selection():
+            self.show_selected()
+        self.root.title(self.tr('AutoDL Quick · 自动找剩余卡') + (self.tr(' · 演示') if self.demo else self.tr(' · 只读测试') if self.read_only else ""))
+        self.language_switch.select(language)
+        self.advanced_editors = [editor for editor in self.advanced_editors if editor.root.winfo_exists()]
+        for editor in self.advanced_editors:
+            editor.set_language(language)
+
     def sync_selectors(self):
         chosen = self.preferences
         signs = chosen.regions or self.catalog.resolve_regions(chosen.region_groups)
@@ -573,7 +595,7 @@ class App:
         self.result_count.set(self.tr('{p0} 台主机 / {p1} 张空闲卡', p0=len(cards), p1=sum(card.idle for card in cards)))
         self.table.delete(*self.table.get_children())
         for index, card in enumerate(cards):
-            self.table.insert("", "end", iid=str(index), tags=("odd" if index % 2 else "even",), values=(card.gpu, card.region, str(card.quote) if card.quote is not None else self.tr('待查询'),
+            self.table.insert("", "end", iid=str(index), tags=("odd" if index % 2 else "even",), values=(card.gpu, self.tr(card.region), str(card.quote) if card.quote is not None else self.tr('待查询'),
                              card.memory_gb or "—", card.cpu_cores or "—", card.ram_gb or "—",
                              f"{card.disk_gb:g}+{card.expand_disk_gb}={card.disk_gb + card.expand_disk_gb:g}" if card.expand_disk_gb else card.disk_gb or "—",
                              str(card.disk_daily_price) if card.disk_daily_price is not None else self.tr('待报价'), card.idle,
@@ -595,7 +617,7 @@ class App:
         self.copy_button.configure(state="normal", text=self.tr('复制配置'))
         self.host_title.set(card.gpu)
         self.host_price.set(self.tr('¥{p0} / 时', p0=card.quote) if card.quote is not None else self.tr('待报价'))
-        self.host_subtitle.set(card.region + "  /  " + card.chip + "  /  " + card.arch)
+        self.host_subtitle.set(self.tr(card.region) + "  /  " + card.chip + "  /  " + card.arch)
         for variable, value, unit in zip(self.spec_values, (card.memory_gb, card.cpu_cores, card.ram_gb, card.idle), (" GB", "", " GB", "")):
             variable.set(str(value) + unit if value is not None and value != 0 else "—")
         self.disk_summary.set(self.tr('数据盘 {p0:g} GB（免费 {p1:g} + 扩容 {p2}）  /  ¥{p3} / 日', p0=card.disk_gb + card.expand_disk_gb, p1=card.disk_gb, p2=card.expand_disk_gb, p3=card.disk_daily_price) if card.disk_daily_price is not None else self.tr('数据盘 {p0:g} GB，扩容日费待报价', p0=card.disk_gb + card.expand_disk_gb))
@@ -605,7 +627,8 @@ class App:
     def advanced(self):
         from .advanced import App as AdvancedApp
         window = tk.Toplevel(self.root)
-        editor = AdvancedApp(window, self.settings(), read_only=True, language=self.language)
+        editor = AdvancedApp(window, self.settings(), read_only=True, language=self.language, on_language_change=self.set_language)
+        self.advanced_editors.append(editor)
         editor.token.set(self.token.get())
         def apply():
             try:
