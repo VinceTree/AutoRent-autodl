@@ -111,7 +111,7 @@ def exact_gpu(raw: Any) -> bool:
 class Settings:
     max_price: str = ""
     poll_seconds: int = 3
-    wait_minutes: int = 30
+    wait_minutes: int = 10
     regions: list[str] = field(default_factory=list)
     image_uuid: str = ""
     image_kind: str = "base"
