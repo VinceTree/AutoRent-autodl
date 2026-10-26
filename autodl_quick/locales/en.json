@@ -333,5 +333,12 @@
   "未知地区：{p0}；请刷新目录并重新选择": "Unknown region: {p0}; refresh the catalog and select again",
   "地区库存格式变化": "Regional stock format changed",
   "地区库存缺少空闲数或总量，不能当作 0": "Regional stock is missing idle or total counts; cannot assume zero",
-  "地区库存不能为负数": "Regional stock cannot be negative"
+  "地区库存不能为负数": "Regional stock cannot be negative",
+  "创建请求网络或响应异常（{p0}）；请核对控制台，工具不会自动重试": "Creation network or response error ({p0}); check the console. No automatic retry",
+  "平台创建请求失败：{p0}": "Instance creation failed: {p0}",
+  "平台拒绝创建：{p0}。已保留记录，请核对控制台后再继续": "Platform rejected creation: {p0}. Record retained; check the console before continuing",
+  "创建失败详情：{p0}": "Creation error details: {p0}",
+  "创建结果未确认：{p0}。已停止并保留记录，不会自动重试": "Creation outcome unknown: {p0}. Stopped and retained the record. No automatic retry",
+  "{p0}。上次失败原因：{p1}": "{p0}. Previous failure: {p1}",
+  "操作已停止：{p0}": "Operation stopped: {p0}"
 }

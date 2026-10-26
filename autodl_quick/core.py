@@ -51,6 +51,11 @@ class ReadUnavailable(QuickError):
 class CreateUncertain(QuickError):
     """Creation might have reached the server; do not repeat it."""
 
+    def __init__(self, message: str, *, reason_code: str = "", http_status: int | None = None):
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.http_status = http_status
+
 
 class Cancelled(QuickError):
     pass
@@ -245,6 +250,8 @@ class AutoDL:
             ("POST", "/api/v1/image/all"),
             ("POST", "/api/v1/machine/check_machine_online"),
             ("POST", "/api/v1/machine/region/gpu_type"),
+            ("POST", "/api/v1/instance"),
+            ("GET", "/api/v1/wallet"),
             ("GET", "/api/v1/region/list"),
             ("GET", "/api/v1/machine/gpu_type"),
         }:
@@ -263,16 +270,18 @@ class AutoDL:
                 envelope = json.loads(response.read(8 * 1024 * 1024).decode("utf-8"))
         except urllib.error.HTTPError as error:
             if creating:
-                raise CreateUncertain("创建请求返回 HTTP 错误；请先核对控制台，工具不会自动重试") from None
+                raise CreateUncertain(f"创建请求返回 HTTP {error.code}；请先核对控制台，工具不会自动重试",
+                                      reason_code="http_error", http_status=error.code) from None
             if error.code in (401, 403):
                 raise LoginRequired("登录失效或无权限，请重新登录 AutoDL") from None
             if error.code == 429 or error.code >= 500:
                 raise ReadUnavailable(f"AutoDL 暂不可用（HTTP {error.code}）") from None
             raise QuickError(f"AutoDL 接口返回 HTTP {error.code}，可能已变更") from None
         except (urllib.error.URLError, TimeoutError, socket.timeout, OSError,
-                ValueError, UnicodeError):
+                ValueError, UnicodeError) as error:
             if creating:
-                raise CreateUncertain("创建结果未确认；可能已创建成功，请核对控制台，工具不会自动重试") from None
+                raise CreateUncertain(f"创建请求网络或响应异常（{type(error).__name__}）；请核对控制台，工具不会自动重试",
+                                      reason_code=type(error).__name__) from None
             raise ReadUnavailable("网络或响应异常，可稍后重试查询") from None
         if not isinstance(envelope, dict) or not isinstance(envelope.get("code"), str):
             if creating:
@@ -628,7 +637,10 @@ class RentalJournal:
         if previous and previous.get("status") != "rejected_no_stock":
             name = previous.get("instance_name", "")
             instance = previous.get("instance_uuid", "尚未确认 ID")
-            raise QuickError(f"已有租卡记录：{name} / {instance}。请核对控制台；需要另一台时先手动归档记录")
+            message = f"已有租卡记录：{name} / {instance}。请核对控制台；需要另一台时先手动归档记录"
+            if previous.get("error_message"):
+                message += f"。上次失败原因：{previous['error_message']}"
+            raise QuickError(message)
 
     def write(self, **data) -> None:
         atomic_json(self.path, data)
@@ -806,6 +818,11 @@ class Engine:
         try:
             instance_id = self.api.create(create_payload(candidate.machine_id, selected, name))
         except APIError as error:
+            credential = getattr(self.api, "_token", "")
+            reason = str(error)
+            if isinstance(credential, str) and credential:
+                reason = reason.replace(credential, "[已隐藏]")
+            record.update(error_type=type(error).__name__, error_code=error.code, error_message=reason[:600])
             # Retry only explicit, unambiguous inventory rejection responses.
             if error.code in {"NoStock", "GPUNotEnough", "GpuNotEnough"}:
                 self._stock_rejections.add(candidate.machine_id)
@@ -813,12 +830,25 @@ class Engine:
                 self.journal.write(**record)
                 self.emit("log", "平台明确拒绝：空闲卡已被占用。继续寻找备选主机")
                 return None
-            raise CreateUncertain("平台拒绝创建，已保留记录；请核对控制台后再继续") from None
+            self.journal.write(**record)
+            self.emit("log", f"平台创建请求失败：{reason}")
+            raise CreateUncertain(f"平台拒绝创建：{reason}。已保留记录，请核对控制台后再继续",
+                                  reason_code=error.code) from None
         except BaseException as error:
+            credential = getattr(self.api, "_token", "")
+            reason = str(error) or type(error).__name__
+            if isinstance(credential, str) and credential:
+                reason = reason.replace(credential, "[已隐藏]")
+            record.update(error_type=type(error).__name__, error_message=reason[:600],
+                          error_code=getattr(error, "reason_code", ""), http_status=getattr(error, "http_status", None))
+            self.journal.write(**record)
+            self.emit("log", f"创建失败详情：{reason}")
             self.emit("log", f"已保留提交记录 {name}；请核对控制台，禁止盲目重试")
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
-            raise CreateUncertain("创建结果未确认，已停止并保留记录；不会自动重试") from None
+            raise CreateUncertain(f"创建结果未确认：{reason}。已停止并保留记录，不会自动重试",
+                                  reason_code=getattr(error, "reason_code", ""),
+                                  http_status=getattr(error, "http_status", None)) from None
         record.update(status="created", instance_uuid=instance_id)
         self.journal.write(**record)
         self.emit("created", record)

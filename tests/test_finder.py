@@ -1,4 +1,6 @@
 from decimal import Decimal
+import gc
+import json
 from pathlib import Path
 import os
 import sys
@@ -8,7 +10,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from autodl_quick.core import AutoDL, Engine, RentalJournal, Settings
+from autodl_quick.core import APIError, AutoDL, Engine, RentalJournal, Settings
 from test_autodl_quick import host
 
 
@@ -105,6 +107,8 @@ class FinderEngineTests(unittest.TestCase):
 @unittest.skipUnless(sys.platform == "win32" or os.environ.get("DISPLAY"), "GUI requires a display")
 class FinderWindowTests(unittest.TestCase):
     def setUp(self):
+        # Dispose of destroyed Tk cycles on the UI thread before starting workers.
+        gc.collect()
         import tkinter as tk
         from autodl_quick.ui.main import App
         self.root = tk.Tk()
@@ -266,6 +270,33 @@ class FinderWindowTests(unittest.TestCase):
             api.assert_not_called()
         finally:
             self.app.busy = False
+
+    def test_creation_failure_is_visible_and_survives_another_click(self):
+        import tkinter as tk
+        from autodl_quick.ui.main import App
+        window = tk.Toplevel(self.root)
+        window.withdraw()
+        app = App(window, Settings(regions=["west-B"], gpu_names=["RTX 5090"]))
+        self.addCleanup(app.close)
+        app.token.set("fake-test-token")
+        api = api_fixture()
+        api.create.side_effect = APIError("UnknownBusinessFailure", "平台返回具体原因")
+        with tempfile.TemporaryDirectory() as temp, patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Catalog.refresh", return_value=app.catalog), patch("autodl_quick.ui.main.Engine", side_effect=lambda client, emit: Engine(client, emit, journal=RentalJournal(Path(temp) / "rental"))):
+            for attempt in range(2):
+                app.rent()
+                deadline = time.monotonic() + 5
+                while app.busy and time.monotonic() < deadline:
+                    self.root.update()
+                    time.sleep(0.01)
+                self.assertFalse(app.busy)
+                self.assertIn("平台返回具体原因", app.status.get())
+                self.assertIn("UnknownBusinessFailure", app.status.get())
+                self.assertEqual(app.activity.cget("text"), "需要处理")
+            api.create.assert_called_once()
+            reports = [json.loads(path.read_text(encoding="utf-8")) for path in (Path(temp) / ".state" / "runs").glob("*.json")]
+            self.assertEqual(len(reports), 2)
+            self.assertTrue(any(report["error_code"] == "UnknownBusinessFailure" for report in reports))
+            self.assertNotIn("fake-test-token", json.dumps(reports))
 
     def test_scan_automatically_displays_first_card_details_without_choice(self):
         api = api_fixture()

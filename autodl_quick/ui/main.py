@@ -10,6 +10,7 @@ import threading
 import time
 import tkinter as tk
 from tkinter import messagebox, ttk
+import uuid
 import webbrowser
 
 from ..core import AutoDL, Candidate, Cancelled, Engine, QuickError, ROOT, Settings, atomic_json
@@ -566,11 +567,14 @@ class App:
             except Cancelled:
                 report["status"] = "cancelled"
             except Exception as error:
-                report.update(status="error", error=self.tr(str(error)).replace(credential, self.tr('[已隐藏]')))
+                report.update(status="error", error=self.tr(str(error)).replace(credential, self.tr('[已隐藏]')),
+                              error_type=type(error).__name__, error_code=getattr(error, "reason_code", ""),
+                              http_status=getattr(error, "http_status", None))
                 self.events.put(("error", report["error"]))
             finally:
                 report["requests"] = api.audit
                 try:
+                    atomic_json(ROOT / ".state" / "runs" / (uuid.uuid4().hex + ".json"), report)
                     atomic_json(ROOT / ".state" / "auto-finder-query.json", report)
                 finally:
                     self.events.put(("done", report["status"]))
@@ -691,7 +695,7 @@ class App:
                 elif kind == "error":
                     self.write_log(value)
                     self.activity.configure(text=self.tr('需要处理'), style="Error.Badge.TLabel")
-                    self.status.set(self.tr('查询未完成，请查看下方记录'))
+                    self.status.set(self.tr('操作已停止：{p0}', p0=value))
                 elif kind == "done":
                     self.busy = False
                     for widget in (self.scan_button, self.wait_button, self.token_entry, self.advanced_button, self.stock_button, self.disk_entry):

@@ -144,10 +144,29 @@ class EngineTests(unittest.TestCase):
 
     def test_api_rejection_preserves_record_and_stops(self):
         self.api.create.side_effect = APIError("UnknownBusinessFailure", "拒绝")
-        with self.assertRaises(CreateUncertain):
+        with self.assertRaisesRegex(CreateUncertain, "拒绝.*UnknownBusinessFailure") as failure:
             self.engine.rent(settings(), NoWait())
         self.api.create.assert_called_once()
         self.assertEqual(self.journal.read()["status"], "submitting")
+        self.assertEqual(self.journal.read()["error_code"], "UnknownBusinessFailure")
+        self.assertIn("拒绝", self.journal.read()["error_message"])
+        self.assertEqual(failure.exception.reason_code, "UnknownBusinessFailure")
+        with self.assertRaisesRegex(QuickError, "上次失败原因：.*UnknownBusinessFailure"):
+            self.engine.rent(settings(), NoWait())
+        self.api.create.assert_called_once()
+
+    def test_transport_failure_preserves_http_status_and_redacts_token(self):
+        self.api._token = "sensitive-local-token"
+        self.api.create.side_effect = CreateUncertain("HTTP 503 sensitive-local-token", reason_code="http_error", http_status=503)
+        logs = []
+        self.engine.emit = lambda kind, value: logs.append(str(value))
+        with self.assertRaises(CreateUncertain) as failure:
+            self.engine.rent(settings(), NoWait())
+        record = self.journal.read()
+        self.assertEqual(record["http_status"], 503)
+        self.assertEqual(failure.exception.http_status, 503)
+        self.assertNotIn(self.api._token, json.dumps(record) + str(logs) + str(failure.exception))
+        self.api.create.assert_called_once()
 
     def test_rehearsal_does_not_clear_existing_journal(self):
         self.journal.write(status="created", instance_uuid="already-rented")
@@ -275,8 +294,19 @@ class APITests(unittest.TestCase):
 
     def test_timeout_creation_is_uncertain(self):
         self.api.opener.open = MagicMock(side_effect=TimeoutError())
-        with self.assertRaises(CreateUncertain):
+        with self.assertRaisesRegex(CreateUncertain, "TimeoutError") as failure:
             self.api.create({})
+        self.assertEqual(failure.exception.reason_code, "TimeoutError")
+        self.api.opener.open.assert_called_once()
+
+    def test_http_creation_failure_keeps_status_without_retry(self):
+        error = urllib.error.HTTPError("https://www.autodl.com", 503, "unavailable", {}, None)
+        self.addCleanup(error.close)
+        self.api.opener.open = MagicMock(side_effect=error)
+        with self.assertRaises(CreateUncertain) as failure:
+            self.api.create({})
+        self.assertEqual(failure.exception.http_status, 503)
+        self.assertEqual(failure.exception.reason_code, "http_error")
         self.api.opener.open.assert_called_once()
 
     def test_timeout_query_can_retry(self):

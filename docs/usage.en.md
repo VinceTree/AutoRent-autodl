@@ -99,6 +99,7 @@ An OS-level lock prevents concurrent rental processes. A durable submitting reco
 - Explicit `NoStock`, `GPUNotEnough` or `GpuNotEnough` responses permit trying another host. This fallback has been tested with simulated creation.
 - A create timeout, unclear response or other business rejection stops the run and retains its record. Creation is never retried blindly.
 - Temporary read failures may be retried within the main window's waiting limit. Expired login or unrecognized responses stop the run. The advanced legacy wait flow stops after five consecutive read failures.
+- Failures display the specific reason in the main window. Rental records retain the creation error type, platform error code or HTTP status. Individual reports in `.state/runs/` preserve earlier failures after another click. A blocked retry also includes the previous failure reason.
 - An existing successful or uncertain record blocks another rental. After checking the console, use `python -m autodl_quick archive-state --checked-console --lang en` if you intentionally want to rent another instance. Archiving neither shuts down nor releases an instance.
 
 ## CLI and tests
