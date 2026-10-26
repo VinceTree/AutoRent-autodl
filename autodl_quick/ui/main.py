@@ -540,6 +540,7 @@ class App:
             report = {"started_at": datetime.now().astimezone().isoformat(), "mode": "automatic_finder",
                       "read_only": not execute, "status": "running", "cards": [],
                       "expand_disk_gb": chosen.expand_disk_gb,
+                      "poll_seconds": chosen.poll_seconds,
                       "region_groups": list(chosen.region_groups), "region_signs": list(chosen.regions), "gpu_names": list(chosen.gpu_names)}
             def emit(kind, value):
                 if kind == "found_cards":

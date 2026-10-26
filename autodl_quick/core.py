@@ -110,7 +110,7 @@ def exact_gpu(raw: Any) -> bool:
 @dataclass
 class Settings:
     max_price: str = ""
-    poll_seconds: int = 30
+    poll_seconds: int = 3
     wait_minutes: int = 30
     regions: list[str] = field(default_factory=list)
     image_uuid: str = ""
@@ -135,8 +135,8 @@ class Settings:
             raise QuickError("等待时间必须是整数")
         if not isinstance(self.regions, list) or not all(isinstance(r, str) for r in self.regions):
             raise QuickError("地区代码必须是字符串列表")
-        if not 15 <= self.poll_seconds <= 3600:
-            raise QuickError("查询间隔应在 15–3600 秒之间")
+        if not 3 <= self.poll_seconds <= 3600:
+            raise QuickError("查询间隔应在 3–3600 秒之间")
         if not 1 <= self.wait_minutes <= 1440:
             raise QuickError("等待时间应在 1–1440 分钟之间")
         if self.min_cuda and cuda_version(self.min_cuda) == (0, 0):
@@ -920,7 +920,7 @@ def main() -> int:
     parser.add_argument("--expand-disk", type=int, help=tr('新增数据盘 GB；筛选可扩容量并实际扩容，0 为不扩容'))
     parser.add_argument("--strategy", choices=["price", "gpu_priority", "region_priority"])
     parser.add_argument("--image-platform", choices=["nvidia", "mthreads", "cpu"])
-    parser.add_argument("--interval", type=int, help=tr('查询间隔秒数，至少 15'))
+    parser.add_argument("--interval", type=int, help=tr('查询间隔秒数，至少 3'))
     parser.add_argument("--wait-minutes", type=int, help=tr('最多等待分钟数'))
     parser.add_argument("--regions", help=tr('官网地区名称 / 数据中心 / 机房代码，用英文逗号分隔'))
     parser.add_argument("--image", help=tr('从 images 命令或控制台获取的镜像 UUID'))

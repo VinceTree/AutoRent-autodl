@@ -62,6 +62,8 @@ The bundled snapshot is `autodl_quick/data/market-catalog.json`. Refreshed catal
 
 No stock means waiting; it does not relax the region, model, VRAM or disk requirement. The waiting limit controls how long the search runs, not the lifetime of a rented instance. There is no automatic shutdown timer; manage a successful rental in the AutoDL console.
 
+After each query round finishes, the default wait before the next round is **3 seconds**. Adjust it in **Advanced preferences → Interval (s)**; the minimum is 3 seconds.
+
 Advanced preferences provide three ordering strategies:
 
 - **First available page; lower price first:** process idle-first pages as they arrive and check cheaper hosts within each page. This does not guarantee the lowest price across the whole market.
