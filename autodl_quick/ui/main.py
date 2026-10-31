@@ -154,14 +154,14 @@ class App:
         self.gpu_combo = ttk.Combobox(controls, textvariable=self.gpu, state="readonly", width=20)
         self.gpu_combo.pack(fill="x")
         self.gpu_combo.bind("<<ComboboxSelected>>", self.gpu_changed)
-        ttk.Label(controls, text=self.tr('扩容数据盘'), style="Surface.TLabel").pack(anchor="w", pady=(9, 4))
+        ttk.Label(controls, text=self.tr('扩容筛选（新增容量）'), style="Surface.TLabel").pack(anchor="w", pady=(9, 4))
         disk_row = ttk.Frame(controls, style="Surface.TFrame")
         disk_row.pack(fill="x")
         self.disk = tk.StringVar(value=str(self.preferences.expand_disk_gb))
         self.disk_entry = ttk.Spinbox(disk_row, textvariable=self.disk, from_=0, to=1048576, increment=50, width=7)
         self.disk_entry.pack(side="left", fill="x", expand=True)
         ttk.Label(disk_row, text="GB", style="Muted.Surface.TLabel").pack(side="left", padx=(8, 2))
-        self.disk_info = tk.StringVar(value=self.tr('新增 {p0} GB，叠加免费容量。\n扩容费用按日另计。', p0=self.preferences.expand_disk_gb) if self.preferences.expand_disk_gb else self.tr('0 表示不扩容，扩容费用按日另计。'))
+        self.disk_info = tk.StringVar(value=self.disk_filter_hint())
         wrapped_label(controls, textvariable=self.disk_info, style="Muted.Surface.TLabel", wraplength=260).pack(fill="x", pady=(6, 10))
         self.stock_button = ttk.Button(controls, text=self.tr('刷新地区库存'), command=self.refresh_stock)
         self.stock_button.pack(fill="x")
@@ -179,7 +179,7 @@ class App:
         self.scan_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
         self.wait_button = ttk.Button(actions, text=self.tr('持续自动找卡'), command=self.wait, padding=(4, 8))
         self.wait_button.grid(row=0, column=1, sticky="ew")
-        self.rent_button = ttk.Button(controls, text=self.tr('开始自动租卡（计费）'), style="Accent.TButton", command=self.rent)
+        self.rent_button = ttk.Button(controls, text=self.rent_action_text(), style="Accent.TButton", command=self.rent)
         self.rent_button.pack(fill="x")
         if self.read_only:
             self.rent_button.configure(state="disabled")
@@ -337,6 +337,8 @@ class App:
         self.result_count.set(self.tr('暂无匹配主机') if searched else self.tr('等待扫描'))
         self.empty_title.set(self.tr('当前范围暂无可用主机') if searched else self.tr('从一张合适的 GPU 开始'))
         self.empty_hint.set(self.tr('点击“持续自动找卡”等待补货，工具会保持所选地区与型号。') if searched else self.tr('在左侧填写 Token，选好地区和型号，再点击“扫描当前余量”。'))
+        if searched and self.preferences.expand_disk_gb:
+            self.empty_hint.set(self.tr('点击“持续自动找卡”，继续等待可新增 {p0} GB 数据盘的主机。', p0=self.preferences.expand_disk_gb))
         self.empty_state.place(relx=0.5, rely=0.58, anchor="center", relwidth=0.92)
         self.detail_content.grid_remove()
         self.detail_empty.grid()
@@ -397,8 +399,17 @@ class App:
             return
         size = int(raw or 0)
         self.preferences = replace(self.preferences, expand_disk_gb=size)
-        self.disk_info.set(self.tr('新增 {p0} GB，叠加免费容量。\n扩容费用按日另计。', p0=size) if size else self.tr('0 表示不扩容，扩容费用按日另计。'))
+        self.disk_info.set(self.disk_filter_hint())
+        self.rent_button.configure(text=self.rent_action_text())
         self.details.set(self.tr('已更新数据盘条件，重新扫描后自动加载对应容量和费用。'))
+
+    def disk_filter_hint(self):
+        size = self.preferences.expand_disk_gb
+        return (self.tr('仅抢可新增 {p0} GB 的主机。\n容量不足继续等待，命中后实际扩容；费用按日另计。', p0=size)
+                if size else self.tr('填新增 GB 可按扩容容量持续抢卡；0 表示不扩容。'))
+
+    def rent_action_text(self):
+        return self.tr('按扩容条件抢卡（计费）') if self.preferences.expand_disk_gb else self.tr('开始自动租卡（计费）')
 
     def render_gpu_choices(self):
         names = self.catalog.gpu_names()
@@ -531,7 +542,9 @@ class App:
         self.cancel_stock_refresh()
         generation = self._stock_generation
         self.cancel.clear()
-        self.status.set(self.tr('正在找卡：{p0} / {p1}；', p0=self.region.get(), p1=self.gpu.get()) + (self.tr('命中后按平台当前价租用一台、单张 GPU，成功后停止。') if execute else self.tr('仅查询，自动加载价格、配置和镜像…')))
+        disk_condition = (self.tr('必须可新增 {p0} GB 数据盘，容量不足继续等待；', p0=chosen.expand_disk_gb)
+                          if waiting else self.tr('扩容筛选：新增 {p0} GB；', p0=chosen.expand_disk_gb)) if chosen.expand_disk_gb else ""
+        self.status.set(self.tr('正在找卡：{p0} / {p1}；', p0=self.region.get(), p1=self.gpu.get()) + disk_condition + (self.tr('命中后按平台当前价租用一台、单张 GPU，成功后停止。') if execute else self.tr('仅查询，自动加载价格、配置和镜像…')))
         for widget in (self.scan_button, self.wait_button, self.rent_button, self.token_entry, self.advanced_button, self.region_combo, self.gpu_combo, self.stock_button, self.disk_entry):
             widget.configure(state="disabled")
         self.stop_button.configure(state="normal")

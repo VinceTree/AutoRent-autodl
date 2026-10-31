@@ -916,6 +916,8 @@ class Engine:
             cadence = PollCadence(settings.poll_seconds, time.monotonic())
             self._stock_rejections.clear()
             round_number = 0
+            if settings.expand_disk_gb:
+                self.emit("log", f"扩容筛选已启用：必须可新增 {settings.expand_disk_gb} GB，容量不足或未知则跳过并继续等待")
             with self.api.polling(cancel, deadline):
                 while time.monotonic() < deadline:
                     check_cancel(cancel)
@@ -947,6 +949,8 @@ class Engine:
                         if not automatic and cadence.failures >= 5:
                             raise QuickError("连续 5 次查询失败，已停止等待；未提交创建") from failure
                         self.emit("log", f"查询暂时失败，{delay:.1f} 秒后重查：{failure}")
+                    elif settings.expand_disk_gb:
+                        self.emit("log", f"当前没有满足新增 {settings.expand_disk_gb} GB 数据盘条件的匹配主机，{delay:.1f} 秒后继续抢卡")
                     else:
                         self.emit("log", f"当前无满足条件的剩余卡，{delay:.1f} 秒后自动重查")
                     self.emit("poll", {"round": round_number, "elapsed_seconds": round(now - started, 3),

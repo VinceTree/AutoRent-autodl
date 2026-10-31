@@ -345,5 +345,14 @@
   "查询间隔应在 0.5–3600 秒之间": "Query interval must be 0.5–3600 seconds",
   "快查基础间隔秒数，默认 1，至少 0.5；无卡降频，失败退避": "Fast polling interval in seconds, default 1, minimum 0.5; slows when idle and backs off on errors",
   "间隔应为数字；等待时长、显存、扩容容量应为整数；地区应来自官网目录": "Interval must be numeric; wait limit, VRAM and disk expansion must be integers; regions must come from the catalog",
-  "查询暂时失败，{p0} 秒后重查：{p1}": "Query temporarily failed; retry in {p0} seconds: {p1}"
+  "查询暂时失败，{p0} 秒后重查：{p1}": "Query temporarily failed; retry in {p0} seconds: {p1}",
+  "扩容筛选（新增容量）": "Disk expansion filter",
+  "仅抢可新增 {p0} GB 的主机。\n容量不足继续等待，命中后实际扩容；费用按日另计。": "Require room for {p0} GB extra.\nKeep waiting for capacity; add it when renting. Disk fees are billed daily.",
+  "填新增 GB 可按扩容容量持续抢卡；0 表示不扩容。": "Enter extra GB to wait for matching disk capacity; 0 means no expansion.",
+  "按扩容条件抢卡（计费）": "Auto-rent with disk filter (billed)",
+  "必须可新增 {p0} GB 数据盘，容量不足继续等待；": "Require {p0} GB extra disk; keep waiting if capacity is insufficient; ",
+  "点击“持续自动找卡”，继续等待可新增 {p0} GB 数据盘的主机。": "Click Wait for stock to keep looking for room for {p0} GB extra disk.",
+  "扩容筛选已启用：必须可新增 {p0} GB，容量不足或未知则跳过并继续等待": "Disk filter enabled: require {p0} GB extra; skip insufficient or unknown capacity and keep waiting",
+  "当前没有满足新增 {p0} GB 数据盘条件的匹配主机，{p1} 秒后继续抢卡": "No matching host with room for {p0} GB extra disk; check again in {p1} seconds",
+  "扩容筛选：新增 {p0} GB；": "Disk filter: {p0} GB extra; "
 }

@@ -23,7 +23,7 @@ class FrontendTests(unittest.TestCase):
         for language in ("zh", "en"):
             with self.subTest(language=language):
                 window = tk.Toplevel(self.root)
-                app = App(window, demo=True, language=language)
+                app = App(window, Settings(expand_disk_gb=100), demo=True, language=language)
                 try:
                     window.geometry("1040x740")
                     window.update()

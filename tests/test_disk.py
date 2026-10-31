@@ -10,7 +10,7 @@ import time
 import unittest
 from unittest.mock import MagicMock, patch
 
-from autodl_quick.core import (AutoDL, Engine, GIB, PriceQuote, QuickError, RentalJournal,
+from autodl_quick.core import (APIError, AutoDL, Cancelled, Engine, GIB, PriceQuote, QuickError, RentalJournal,
                           Settings, candidates, create_payload, price_payload)
 from test_autodl_quick import host
 from test_finder import api_fixture
@@ -135,6 +135,88 @@ class DiskEngineTests(unittest.TestCase):
             self.engine.auto_wait(Settings(expand_disk_gb=100), threading.Event(), execute=True)
         self.api.create.assert_not_called()
 
+    def test_waits_through_insufficient_and_unknown_capacity_then_rents_expanded(self):
+        self.api.machine_batches.side_effect = [
+            [[disk_host(max_data_disk_expand_size=99 * GIB)]],
+            [[disk_host(max_data_disk_expand_size=None)]],
+            [[disk_host()]],
+        ]
+        chosen = Settings(expand_disk_gb=100)
+        cancel = threading.Event()
+
+        def wait(_):
+            self.api.quote_detail.assert_not_called()
+            self.api.images.assert_not_called()
+            self.api.create.assert_not_called()
+            # A caller editing its settings cannot relax an active run.
+            chosen.expand_disk_gb = 0
+            return False
+
+        with patch.object(cancel, "wait", side_effect=wait) as pause:
+            result = self.engine.auto_wait(chosen, cancel, execute=True)
+        self.assertEqual(pause.call_count, 2)
+        self.assertEqual(result["expand_disk_gb"], 100)
+        self.assertEqual(result["disk_total_gb"], 150)
+        self.assertTrue(all(call.args[0].expand_disk_gb == 100 for call in self.api.machine_batches.call_args_list))
+        self.api.quote_detail.assert_called_once_with("test-host", 100)
+        payload = self.api.create.call_args.args[0]
+        self.assertEqual(payload["instance_info"]["expand_data_disk"], 100 * GIB)
+        self.assertEqual(payload["price_info"]["expand_data_disk"], 100 * GIB)
+        self.api.create.assert_called_once()
+
+    def test_sufficient_capacity_on_next_page_is_tried_without_waiting(self):
+        self.api.machine_batches.return_value = [
+            [disk_host(machine_id="too-small", max_data_disk_expand_size=99 * GIB)],
+            [disk_host(machine_id="large-enough")],
+        ]
+        cancel = threading.Event()
+        with patch.object(cancel, "wait", side_effect=AssertionError("Do not sleep before checking the next page")):
+            result = self.engine.auto_wait(Settings(expand_disk_gb=100), cancel, execute=True)
+        self.assertEqual(result["machine_id"], "large-enough")
+        self.api.quote_detail.assert_called_once_with("large-enough", 100)
+
+    def test_capacity_shortage_keeps_waiting_and_can_be_cancelled_without_order(self):
+        self.api.machine_batches.return_value = [[disk_host(max_data_disk_expand_size=0)]]
+        logs = []
+        self.engine.emit = lambda kind, value: logs.append(str(value)) if kind == "log" else None
+        cancel = threading.Event()
+
+        def stop(_):
+            cancel.set()
+            return True
+
+        with patch.object(cancel, "wait", side_effect=stop), self.assertRaises(Cancelled):
+            self.engine.auto_wait(Settings(expand_disk_gb=100), cancel, execute=True)
+        self.assertTrue(any("新增 100 GB" in log and "继续抢卡" in log for log in logs))
+        self.api.quote_detail.assert_not_called()
+        self.api.create.assert_not_called()
+        self.assertFalse(self.engine.journal.path.exists())
+
+    def test_read_only_expansion_wait_resumes_when_capacity_returns_without_creating(self):
+        self.api.machine_batches.side_effect = [
+            [[disk_host(max_data_disk_expand_size=None)]], [[disk_host()]],
+        ]
+        cancel = threading.Event()
+        with patch.object(cancel, "wait", return_value=False) as pause:
+            result = self.engine.auto_wait(Settings(expand_disk_gb=100), cancel)
+        pause.assert_called_once()
+        self.assertEqual(result["expand_disk_gb"], 100)
+        self.assertEqual(result["disk_daily_price"], "0.67")
+        self.api.quote_detail.assert_called_once_with("test-host", 100)
+        self.api.create.assert_not_called()
+        self.assertFalse(self.engine.journal.path.exists())
+
+    def test_no_stock_fallback_keeps_the_requested_expansion(self):
+        self.api.machine_batches.return_value = [[disk_host(machine_id="a"), disk_host(machine_id="b")]]
+        self.api.create.side_effect = [APIError("NoStock", "taken"), "test-instance"]
+        result = self.engine.auto_wait(Settings(expand_disk_gb=100), threading.Event(), execute=True)
+        self.assertEqual(result["machine_id"], "b")
+        self.assertEqual(self.api.create.call_count, 2)
+        for call in self.api.create.call_args_list:
+            payload = call.args[0]
+            self.assertEqual(payload["instance_info"]["expand_data_disk"], 100 * GIB)
+            self.assertEqual(payload["price_info"]["expand_data_disk"], 100 * GIB)
+
 
 @unittest.skipUnless(sys.platform == "win32" or os.environ.get("DISPLAY"), "GUI requires a display")
 class DiskWindowTests(unittest.TestCase):
@@ -162,6 +244,28 @@ class DiskWindowTests(unittest.TestCase):
         api.assert_not_called()
         message.assert_called_once()
         self.assertFalse(self.app.busy)
+
+    def test_positive_expansion_exposes_the_disk_filter_rental_action(self):
+        self.app.disk.set("100")
+        self.assertEqual(self.app.rent_button.cget("text"), "按扩容条件抢卡（计费）")
+        self.assertIn("仅抢可新增 100 GB", self.app.disk_info.get())
+        self.assertIn("容量不足继续等待", self.app.disk_info.get())
+        self.app.show_cards([])
+        self.assertIn("继续等待可新增 100 GB", self.app.empty_hint.get())
+        self.assertIn("disabled", self.app.rent_button.state())
+        self.app.disk.set("0")
+        self.assertEqual(self.app.rent_button.cget("text"), "开始自动租卡（计费）")
+        self.assertEqual(self.app.settings().expand_disk_gb, 0)
+
+    def test_disk_filter_action_and_hint_switch_language_without_losing_capacity(self):
+        self.app.disk.set("100")
+        self.app.set_language("en")
+        self.assertEqual(self.app.rent_button.cget("text"), "Auto-rent with disk filter (billed)")
+        self.assertIn("Require room for 100 GB extra", self.app.disk_info.get())
+        self.assertEqual(self.app.settings().expand_disk_gb, 100)
+        self.app.set_language("zh")
+        self.assertEqual(self.app.rent_button.cget("text"), "按扩容条件抢卡（计费）")
+        self.assertEqual(self.app.settings().expand_disk_gb, 100)
 
     def test_scan_displays_target_capacity_and_daily_fee_without_renting(self):
         self.app.disk.set("100")

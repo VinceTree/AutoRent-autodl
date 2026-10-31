@@ -82,7 +82,8 @@ Leave the GPU hourly cap blank to use the current account quote. Disk daily fees
 
 ## Data disk expansion
 
-- **Add data disk** is the **additional** capacity in GB; `0` means no expansion. If the host provides 50 GB free and you enter 100, the target data disk is 150 GB.
+- **Disk expansion filter** is the **additional** capacity in GB; `0` means no expansion. If the host provides 50 GB free and you enter 100, the target data disk is 150 GB.
+- A positive value changes the billed action to **Auto-rent with disk filter (billed)**. It keeps looking for hosts matching the selected region, model and disk capacity. An idle GPU with insufficient or unknown disk room is skipped; the search continues through other hosts, pages and polling rounds without reducing the requested size. Empty results and wait logs show the required extra GB. A successful rental includes that expansion and stops the run. Read-only **Wait for stock** uses the same capacity condition.
 - Capacity is checked using the host's `max_data_disk_expand_size`. Hosts with insufficient or unknown expansion capacity are excluded when expansion is requested.
 - The same size is used for filtering, quoting and creation. The `expand_data_disk` fields in both order sections are submitted as `GB × 1024³` bytes.
 - GPU quotes are shown in **CNY/hour** and data disk fees in **CNY/day**. The disk fee comes from the account quote's `data_disk_info.data_disk_deal_daily_price / 1000`; missing or invalid fees block creation.
@@ -142,7 +143,7 @@ python -m autodl_quick images --read-only --image-platform mthreads --lang en
 python -m autodl_quick rent --execute --lang en
 ```
 
-The 189 offline and GUI tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback, uncertain creation, adaptive polling, rejection expiry, rate-limit backoff and request deadlines.
+The 196 offline and GUI tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback, uncertain creation, adaptive polling, rejection expiry, rate-limit backoff and request deadlines. Disk regressions also verify continued searching across pages and rounds with insufficient or unknown capacity, actual expansion after capacity returns, and preservation of the disk condition during fallback and language switching.
 
 On October 31, 2026 (China time), one user-authorized live test used the repository's `Engine.auto_wait` to rent a single RTX 4090 in Beijing B within the saved scope, at an account quote of CNY 2.18/hour with no disk expansion. It sent creation about 0.97 seconds after the first probe began and received the instance ID after about 1.18 seconds, using four reads before submission. These timings exclude reading the local Chrome session. The test confirmed `running`, requested shutdown and confirmed `shutdown`. It sent exactly one create request: two read-only preflight requests plus twelve requests covering acquisition, a server-side fallback shutdown timer, status checks and shutdown. No high-frequency load test was performed. Existing instance states and the original rental journal were preserved. Local evidence is in `.state/preflight-v2.json` and `.state/live-smoke-v2.json`, without the Token. Explicit no-stock fallback remains covered by offline simulation.
 
