@@ -1,6 +1,6 @@
 {
   "max_price": "",
-  "poll_seconds": 3,
+  "poll_seconds": 1,
   "wait_minutes": 10,
   "regions": [],
   "image_uuid": "",

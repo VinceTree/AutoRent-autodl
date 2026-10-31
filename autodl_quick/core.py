@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import argparse
 import copy
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass, field, replace
 from decimal import Decimal, InvalidOperation
+from email.utils import parsedate_to_datetime
 import getpass
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -27,6 +29,7 @@ import uuid
 
 from .catalog import Catalog, parse_region_stock
 from .i18n import Translator
+from .pacing import PollCadence
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +49,10 @@ class LoginRequired(QuickError):
 
 class ReadUnavailable(QuickError):
     """A read can be repeated without creating another instance."""
+
+    def __init__(self, message: str, *, retry_after: float = 0):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class CreateUncertain(QuickError):
@@ -110,7 +117,7 @@ def exact_gpu(raw: Any) -> bool:
 @dataclass
 class Settings:
     max_price: str = ""
-    poll_seconds: int = 3
+    poll_seconds: float = 1
     wait_minutes: int = 10
     regions: list[str] = field(default_factory=list)
     image_uuid: str = ""
@@ -129,14 +136,15 @@ class Settings:
 
     def validate(self, renting: bool = False) -> None:
         expanded_disk_bytes(self.expand_disk_gb)
-        if not isinstance(self.poll_seconds, int) or isinstance(self.poll_seconds, bool):
-            raise QuickError("查询间隔必须是整数")
+        if (not isinstance(self.poll_seconds, (int, float)) or isinstance(self.poll_seconds, bool)
+                or not math.isfinite(self.poll_seconds)):
+            raise QuickError("查询间隔必须是有限数字")
         if not isinstance(self.wait_minutes, int) or isinstance(self.wait_minutes, bool):
             raise QuickError("等待时间必须是整数")
         if not isinstance(self.regions, list) or not all(isinstance(r, str) for r in self.regions):
             raise QuickError("地区代码必须是字符串列表")
-        if not 3 <= self.poll_seconds <= 3600:
-            raise QuickError("查询间隔应在 3–3600 秒之间")
+        if not 0.5 <= self.poll_seconds <= 3600:
+            raise QuickError("查询间隔应在 0.5–3600 秒之间")
         if not 1 <= self.wait_minutes <= 1440:
             raise QuickError("等待时间应在 1–1440 分钟之间")
         if self.min_cuda and cuda_version(self.min_cuda) == (0, 0):
@@ -228,19 +236,42 @@ class AutoDL:
         self.read_only = read_only
         self.audit: list[dict] = []
         self.opener = urllib.request.build_opener(SameOriginRedirect())
+        self._read_control: tuple[threading.Event, float] | None = None
+
+    @contextmanager
+    def polling(self, cancel: threading.Event, deadline: float):
+        """Let the engine own retries, cancellation and the overall read budget."""
+        previous = self._read_control
+        self._read_control = (cancel, deadline)
+        try:
+            yield
+        finally:
+            self._read_control = previous
+
+    def read_timeout(self) -> float:
+        if self._read_control is None:
+            return self.timeout
+        cancel, deadline = self._read_control
+        check_cancel(cancel)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise QuickError("已达到等待时限，尚未创建实例")
+        return min(self.timeout, 5, remaining)
 
     def request(self, method: str, path: str, body: dict | None = None,
                 *, creating: bool = False) -> Any:
-        for attempt in range(1 if creating else 3):
+        attempts = 1 if creating or self._read_control is not None else 3
+        for attempt in range(attempts):
             try:
                 return self._request_once(method, path, body, creating=creating)
-            except ReadUnavailable:
-                if creating or attempt == 2:
+            except ReadUnavailable as error:
+                if attempt == attempts - 1:
                     raise
-                time.sleep(attempt + 1)
+                time.sleep(max(attempt + 1, error.retry_after))
 
     def _request_once(self, method: str, path: str, body: dict | None = None,
                       *, creating: bool = False) -> Any:
+        timeout = self.timeout if creating else self.read_timeout()
         if not path.startswith("/api/v1/") or ".." in path or "?" in path:
             raise QuickError("无效 API 路径")
         if self.read_only and (method, path) not in {
@@ -266,7 +297,7 @@ class AutoDL:
                      "User-Agent": "AutoDLQuick/1.0 (local client)"},
         )
         try:
-            with self.opener.open(request, timeout=self.timeout) as response:
+            with self.opener.open(request, timeout=timeout) as response:
                 envelope = json.loads(response.read(8 * 1024 * 1024).decode("utf-8"))
         except urllib.error.HTTPError as error:
             if creating:
@@ -275,7 +306,18 @@ class AutoDL:
             if error.code in (401, 403):
                 raise LoginRequired("登录失效或无权限，请重新登录 AutoDL") from None
             if error.code == 429 or error.code >= 500:
-                raise ReadUnavailable(f"AutoDL 暂不可用（HTTP {error.code}）") from None
+                raw_retry = error.headers.get("Retry-After", "") if error.headers else ""
+                try:
+                    retry_after = float(raw_retry)
+                except (ValueError, TypeError):
+                    try:
+                        retry_after = parsedate_to_datetime(raw_retry).timestamp() - time.time()
+                    except (ValueError, TypeError, OverflowError):
+                        retry_after = 0
+                if not math.isfinite(retry_after):
+                    retry_after = 0
+                raise ReadUnavailable(f"AutoDL 暂不可用（HTTP {error.code}）",
+                                      retry_after=max(5 if error.code == 429 else 0, retry_after)) from None
             raise QuickError(f"AutoDL 接口返回 HTTP {error.code}，可能已变更") from None
         except (urllib.error.URLError, TimeoutError, socket.timeout, OSError,
                 ValueError, UnicodeError) as error:
@@ -319,6 +361,13 @@ class AutoDL:
                     seen.add(str(row["machine_id"]))
                     batch.append(row)
             yield batch
+            # Waiting requests idle-descending pages. Once a whole page is
+            # explicitly idle=0, scanning the busy tail only delays the next
+            # probe. Unknown idle fields must not be treated as zero here.
+            if self._read_control is not None and (not data["list"] or all(
+                    isinstance(row, dict) and integer(row.get("gpu_idle_num"), -1) == 0
+                    for row in data["list"])):
+                break
             max_page = integer(data.get("max_page"))
             total = integer(data.get("result_total"), -1)
             if max_page and page >= max_page:
@@ -659,7 +708,7 @@ class Engine:
         self.emit = emit or (lambda *_: None)
         self.journal = journal or RentalJournal()
         self._image_cache: dict[tuple[str, str], list[dict]] = {}
-        self._stock_rejections: set[str] = set()
+        self._stock_rejections: dict[str, float] = {}
 
     def quote_candidate(self, settings: Settings, candidate: Candidate) -> Decimal:
         if settings.expand_disk_gb:
@@ -710,7 +759,7 @@ class Engine:
         for batch in self.api.machine_batches(chosen, cancel):
             for candidate in candidates(batch, chosen):
                 check_cancel(cancel)
-                if candidate.machine_id in self._stock_rejections:
+                if self._stock_rejections.get(candidate.machine_id, 0) > time.monotonic():
                     continue
                 self.quote_candidate(settings, candidate)
                 if settings.max_price and candidate.quote > positive_decimal(settings.max_price):
@@ -726,36 +775,9 @@ class Engine:
         return found
 
     def auto_wait(self, settings: Settings, cancel: threading.Event, *, execute=False) -> dict:
-        settings = copy.deepcopy(settings)
-        settings.validate(renting=execute)
-        deadline = time.monotonic() + settings.wait_minutes * 60
-        with self.journal if execute else nullcontext():
-            if execute:
-                self.journal.ensure_new()
-            while time.monotonic() < deadline:
-                check_cancel(cancel)
-                try:
-                    rejected_before = len(self._stock_rejections)
-                    found = self.discover(settings, cancel, limit=1)
-                    for card in found:
-                        if not execute:
-                            return {"status": "rehearsed", "gpu": card.gpu, "region": card.region,
-                                    "machine_id": card.machine_id, "current_price": str(card.quote),
-                                    "image_uuid": card.image_uuid, "expand_disk_gb": card.expand_disk_gb,
-                                    "disk_total_gb": card.disk_gb + card.expand_disk_gb,
-                                    "disk_daily_price": str(card.disk_daily_price)}
-                        result = self.try_candidate(settings, card, cancel, True, deadline)
-                        if result:
-                            return result
-                    if len(self._stock_rejections) > rejected_before:
-                        continue
-                except ReadUnavailable as error:
-                    self.emit("log", f"查询暂时失败，继续等待：{error}")
-                self.emit("log", f"当前无满足条件的剩余卡，{settings.poll_seconds} 秒后自动重查")
-                if cancel.wait(min(settings.poll_seconds, max(0, deadline - time.monotonic()))):
-                    check_cancel(cancel)
-                self._stock_rejections.clear()
-        raise QuickError("已达到等待时限，尚未创建实例")
+        # A summary can lag behind released GPUs. Waiting probes host pages
+        # directly and streams every fallback, without using discover(limit=1).
+        return self._wait(settings, cancel, execute=execute, automatic=True)
 
     def scan(self, settings: Settings, cancel: threading.Event | None = None) -> list[Candidate]:
         settings.validate()
@@ -773,10 +795,17 @@ class Engine:
             catalog = Catalog.load()
             scopes = [replace(settings, regions=catalog.resolve_regions([group])) for group in settings.region_groups]
         visible = []
+        attempted: set[str] = set()
         for scope in scopes:
             for batch in self.api.machine_batches(scope, cancel):
                 check_cancel(cancel)
-                matching = candidates(batch, scope)
+                matching = []
+                for candidate in candidates(batch, scope):
+                    if (candidate.machine_id in attempted
+                            or self._stock_rejections.get(candidate.machine_id, 0) > time.monotonic()):
+                        continue
+                    attempted.add(candidate.machine_id)
+                    matching.append(candidate)
                 visible.extend(matching)
                 self.emit("candidates", visible[:300])
                 yield matching
@@ -784,13 +813,12 @@ class Engine:
     def try_candidate(self, settings: Settings, candidate: Candidate, cancel: threading.Event,
                       execute: bool, deadline: float) -> dict | None:
         check_cancel(cancel)
-        selected = self.prepare_image(settings, candidate) if execute else image_for_candidate(settings, candidate)
+        selected = self.prepare_image(settings, candidate)
         if execute and selected is None:
             return None
         selected = selected or settings
-        quote = self.quote_candidate(settings, candidate)
         cap = positive_decimal(settings.max_price) if settings.max_price else None
-        if (cap is not None and quote > cap) or not self.api.online(candidate.machine_id):
+        if not self.api.online(candidate.machine_id):
             return None
         check_cancel(cancel)
         if time.monotonic() >= deadline:
@@ -799,12 +827,20 @@ class Engine:
         if cap is not None and quote > cap:
             self.emit("log", "下单前报价升高，继续寻找备选主机")
             return None
+        check_cancel(cancel)
+        if time.monotonic() >= deadline:
+            raise QuickError("已达到等待时限，尚未创建实例")
+        self.emit("found_cards", [candidate])
         operation = uuid.uuid4().hex
         name = "quick-rent-" + operation[:10]
         if not execute:
             self.emit("log", f"演练命中：{candidate.gpu} / {candidate.region} / {candidate.machine_id}，平台当前价 ¥{quote}/小时；没有下单")
             return {"status": "rehearsed", "machine_id": candidate.machine_id, "gpu": candidate.gpu,
                     "region": candidate.region, "quoted_yuan_per_hour": str(quote),
+                    "current_price": str(quote), "image_uuid": candidate.image_uuid,
+                    "expand_disk_gb": candidate.expand_disk_gb,
+                    "disk_total_gb": candidate.disk_gb + candidate.expand_disk_gb,
+                    "disk_daily_price": str(candidate.disk_daily_price),
                     "payload": create_payload(candidate.machine_id, selected, "quick-rent-PREVIEW")}
         record = {"status": "submitting", "operation": operation, "gpu": candidate.gpu,
                   "region_sign": candidate.region_sign, "instance_name": name,
@@ -825,7 +861,7 @@ class Engine:
             record.update(error_type=type(error).__name__, error_code=error.code, error_message=reason[:600])
             # Retry only explicit, unambiguous inventory rejection responses.
             if error.code in {"NoStock", "GPUNotEnough", "GpuNotEnough"}:
-                self._stock_rejections.add(candidate.machine_id)
+                self._stock_rejections[candidate.machine_id] = time.monotonic() + PollCadence.REJECTION_SECONDS
                 record.update(status="rejected_no_stock", rejection_code=error.code)
                 self.journal.write(**record)
                 self.emit("log", "平台明确拒绝：空闲卡已被占用。继续寻找备选主机")
@@ -867,36 +903,57 @@ class Engine:
         return self.wait_for_match(settings, cancel, execute=True)
 
     def wait_for_match(self, settings: Settings, cancel: threading.Event, *, execute: bool = False) -> dict:
+        return self._wait(settings, cancel, execute=execute, automatic=False)
+
+    def _wait(self, settings: Settings, cancel: threading.Event, *, execute: bool, automatic: bool) -> dict:
         # Freeze the request: editing GUI fields while waiting cannot change it.
         settings = copy.deepcopy(settings)
         settings.validate(renting=execute)
-        cap = positive_decimal(settings.max_price) if settings.max_price else None
         with self.journal if execute else nullcontext():
             if execute:
                 self.journal.ensure_new()
             deadline = time.monotonic() + settings.wait_minutes * 60
-            failures = 0
-            while time.monotonic() < deadline:
-                check_cancel(cancel)
-                try:
-                    for batch in self.match_batches(settings, cancel):
-                        for candidate in batch:
-                            record = self.try_candidate(settings, candidate, cancel, execute, deadline)
-                            if record:
-                                return record
-                    failures = 0
-                    price_condition = f" ¥{cap}/小时以内" if cap is not None else "按平台当前价"
-                    self.emit("log", f"暂时没有符合条件的可用主机（{price_condition}），{settings.poll_seconds} 秒后重查")
-                    delay = settings.poll_seconds
-                except ReadUnavailable as error:
-                    failures += 1
-                    if failures >= 5:
-                        raise QuickError("连续 5 次查询失败，已停止等待；未提交创建") from error
-                    delay = min(settings.poll_seconds * 2 ** (failures - 1), 300)
-                    self.emit("log", f"{error}，{delay} 秒后重查（{failures}/5）")
-                remaining = max(0, deadline - time.monotonic())
-                if cancel.wait(min(delay, remaining)):
+            cadence = PollCadence(settings.poll_seconds, time.monotonic())
+            self._stock_rejections.clear()
+            round_number = 0
+            with self.api.polling(cancel, deadline):
+                while time.monotonic() < deadline:
                     check_cancel(cancel)
+                    started = time.monotonic()
+                    round_number += 1
+                    matched = 0
+                    failure = None
+                    # Expired rejections may be tried again after new stock arrives.
+                    self._stock_rejections = {key: until for key, until in self._stock_rejections.items() if until > started}
+                    try:
+                        for batch in self.match_batches(settings, cancel):
+                            if batch:
+                                cadence.activity(time.monotonic())
+                            matched += len(batch)
+                            for candidate in batch:
+                                check_cancel(cancel)
+                                if time.monotonic() >= deadline:
+                                    raise QuickError("已达到等待时限，尚未创建实例")
+                                record = self.try_candidate(settings, candidate, cancel, execute, deadline)
+                                if record:
+                                    return record
+                    except ReadUnavailable as error:
+                        failure = error
+                    now = time.monotonic()
+                    delay = cadence.delay(started, now, failed=failure is not None,
+                                          retry_after=failure.retry_after if failure else 0)
+                    delay = min(delay, max(0, deadline - now))
+                    if failure is not None:
+                        if not automatic and cadence.failures >= 5:
+                            raise QuickError("连续 5 次查询失败，已停止等待；未提交创建") from failure
+                        self.emit("log", f"查询暂时失败，{delay:.1f} 秒后重查：{failure}")
+                    else:
+                        self.emit("log", f"当前无满足条件的剩余卡，{delay:.1f} 秒后自动重查")
+                    self.emit("poll", {"round": round_number, "elapsed_seconds": round(now - started, 3),
+                                       "next_delay_seconds": round(delay, 3), "matched": matched,
+                                       "read_failures": cadence.failures})
+                    if cancel.wait(delay):
+                        check_cancel(cancel)
             raise QuickError("已达到等待时限，尚未创建实例")
 
 
@@ -920,7 +977,7 @@ def main() -> int:
     parser.add_argument("--expand-disk", type=int, help=tr('新增数据盘 GB；筛选可扩容量并实际扩容，0 为不扩容'))
     parser.add_argument("--strategy", choices=["price", "gpu_priority", "region_priority"])
     parser.add_argument("--image-platform", choices=["nvidia", "mthreads", "cpu"])
-    parser.add_argument("--interval", type=int, help=tr('查询间隔秒数，至少 3'))
+    parser.add_argument("--interval", type=float, help=tr('快查基础间隔秒数，默认 1，至少 0.5；无卡降频，失败退避'))
     parser.add_argument("--wait-minutes", type=int, help=tr('最多等待分钟数'))
     parser.add_argument("--regions", help=tr('官网地区名称 / 数据中心 / 机房代码，用英文逗号分隔'))
     parser.add_argument("--image", help=tr('从 images 命令或控制台获取的镜像 UUID'))

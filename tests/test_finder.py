@@ -126,6 +126,20 @@ class FinderWindowTests(unittest.TestCase):
         self.assertEqual(len(chosen.regions), 18)
         self.assertIn("disabled", self.app.rent_button.state())
 
+    def test_waiting_starts_without_synchronous_catalog_refresh(self):
+        api = api_fixture()
+        self.app.token.set("fake-test-token")
+        with tempfile.TemporaryDirectory() as temp, patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Catalog.refresh") as refresh:
+            self.app.wait_button.invoke()
+            deadline = time.monotonic() + 5
+            while self.app.busy and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(0.01)
+            self.assertFalse(self.app.busy)
+            refresh.assert_not_called()
+            api.machine_batches.assert_called_once()
+            api.create.assert_not_called()
+
     def test_main_selectors_expand_region_and_preserve_exact_model(self):
         self.app.region.set("北京B区")
         self.app.region_changed()

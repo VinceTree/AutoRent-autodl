@@ -62,7 +62,15 @@ The bundled snapshot is `autodl_quick/data/market-catalog.json`. Refreshed catal
 
 No stock means waiting; it does not relax the region, model, VRAM or disk requirement. The waiting limit controls how long the search runs, not the lifetime of a rented instance. There is no automatic shutdown timer; manage a successful rental in the AutoDL console.
 
-After each query round finishes, the default wait before the next round is **3 seconds**, with a **10-minute** waiting limit per run. Adjust these in **Advanced preferences** using **Interval (s)** and **Wait limit (min)**; the minimum interval is 3 seconds.
+Waiting and auto-rent share an adaptive schedule, with a **10-minute** waiting limit by default:
+
+- Start immediately with the selected scope and loaded catalog. Use the explicit catalog refresh control before a run when you need updated region mappings.
+- Query host pages directly while waiting; a lagging regional summary showing zero does not block a probe. Pages are requested in descending idle-count order; a full page explicitly showing zero idle GPUs ends that probe without scanning the busy tail. A one-off stock scan still uses the summary to narrow its query.
+- The default fast interval is **1 second** for the first 20 seconds and for 20 seconds after finding candidates. With no candidates, it slows to about **3 seconds**. Positive jitter of 0–10% avoids a fixed beat. Query time counts toward the interval; rounds remain sequential and missed ticks are never replayed.
+- Check images and online status, then obtain one final account quote before submitting. Continue immediately to the next candidate when a host is offline, incompatible, too expensive or explicitly out of stock. An explicit stock rejection gives that host a 10-second cooldown before it can be tried again.
+- Reads during waiting have a timeout of at most 5 seconds, shortened near the deadline. The waiting loop owns retries, using roughly 2, 4, 8, 16, 32 and 60 seconds of backoff and respecting HTTP `Retry-After`. Cancellation interrupts the wait; in-flight reads remain subject to their timeout. An uncertain create still stops without retrying.
+
+Adjust the base interval in **Advanced preferences**; fractional values are supported, with a **0.5-second** minimum. Idle polling uses three times the base, capped at 30 seconds, without going faster than your chosen base. Saved intervals remain effective; change an old 3-second setting to 1 second if desired. The `polls` list in `.state/runs/` reports query duration, next wait, candidate count and consecutive read failures.
 
 Advanced preferences provide three ordering strategies:
 
@@ -94,7 +102,7 @@ Local configuration and `.state/rental.json` retain their original paths across 
 
 ## Quotes and duplicate prevention
 
-Quotes use one GPU, pay-as-you-go billing and your selected disk expansion. The hourly instance price prefers positive `payg_price / 1000`; an unused `deal_price = 0` placeholder is not treated as a free GPU. The optional GPU cap and current quote are checked again before submission. The platform bill remains authoritative because availability and prices can change between preview and creation.
+Quotes use one GPU, pay-as-you-go billing and your selected disk expansion. The hourly instance price prefers positive `payg_price / 1000`; an unused `deal_price = 0` placeholder is not treated as a free GPU. The final account quote and optional GPU cap are checked after the online check, immediately before submission. The platform bill remains authoritative because availability and prices can change between preview and creation.
 
 An OS-level lock prevents concurrent rental processes. A durable submitting record is written to `.state/rental.json` before sending a create request; a successful response adds the instance ID. Passwords, Jupyter tokens and the web Token are not written to this record.
 

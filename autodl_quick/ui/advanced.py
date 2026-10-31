@@ -436,7 +436,7 @@ class App:
         groups = self.selected_regions()
         value, version, kind = self.store_profile()
         try:
-            result = Settings(max_price=self.price.get().strip(), poll_seconds=int(self.interval.get()),
+            result = Settings(max_price=self.price.get().strip(), poll_seconds=float(self.interval.get()),
                               wait_minutes=int(self.wait.get()), min_vram_gb=int(self.vram.get()),
                               expand_disk_gb=int(self.disk.get().strip() or 0),
                               gpu_names=[] if self.all_gpus else list(self.model_order), region_groups=groups,
@@ -444,7 +444,7 @@ class App:
                               image_uuid=value, image_cuda=version, image_kind=kind,
                               image_chip=self.active_platform, image_arch="x86", image_profiles=copy.deepcopy(self.profiles))
         except ValueError:
-            raise QuickError(self.tr('间隔、等待时长、显存、扩容容量应为整数；地区应来自官网目录')) from None
+            raise QuickError(self.tr('间隔应为数字；等待时长、显存、扩容容量应为整数；地区应来自官网目录')) from None
         result.validate(renting)
         return result
 

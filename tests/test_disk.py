@@ -117,9 +117,7 @@ class DiskEngineTests(unittest.TestCase):
         self.api.create.assert_not_called()
 
     def test_simulated_rent_preserves_expansion_through_auto_image_and_final_quote(self):
-        self.api.quote_detail.side_effect = [PriceQuote(Decimal("2.88"), Decimal("0.67")),
-                                             PriceQuote(Decimal("2.88"), Decimal("0.68")),
-                                             PriceQuote(Decimal("2.88"), Decimal("0.69"))]
+        self.api.quote_detail.return_value = PriceQuote(Decimal("2.88"), Decimal("0.69"))
         result = self.engine.auto_wait(Settings(expand_disk_gb=100), threading.Event(), execute=True)
         self.api.create.assert_called_once()
         payload = self.api.create.call_args.args[0]
@@ -128,7 +126,7 @@ class DiskEngineTests(unittest.TestCase):
         self.assertEqual(result["disk_daily_price"], "0.69")
         self.assertEqual(result["disk_total_gb"], 150)
         self.assertEqual(result["expand_disk_gb"], 100)
-        self.assertTrue(all(call.args == ("test-host", 100) for call in self.api.quote_detail.call_args_list))
+        self.api.quote_detail.assert_called_once_with("test-host", 100)
         self.api.quote.assert_not_called()
 
     def test_failed_disk_quote_cannot_reach_paid_creation(self):

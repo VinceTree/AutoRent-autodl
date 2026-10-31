@@ -538,7 +538,7 @@ class App:
         credential = self.token.get().strip()
         def work():
             report = {"started_at": datetime.now().astimezone().isoformat(), "mode": "automatic_finder",
-                      "read_only": not execute, "status": "running", "cards": [],
+                      "read_only": not execute, "status": "running", "cards": [], "polls": [],
                       "expand_disk_gb": chosen.expand_disk_gb,
                       "poll_seconds": chosen.poll_seconds,
                       "wait_minutes": chosen.wait_minutes,
@@ -546,20 +546,26 @@ class App:
             def emit(kind, value):
                 if kind == "found_cards":
                     report["cards"] = [card.display() for card in value]
+                elif kind == "poll":
+                    report["polls"].append(value)
+                    return
                 elif kind == "region_stock":
                     self.events.put(("scope_stock", (generation, value)))
                     return
                 self.events.put((kind, value))
             engine = Engine(api, emit)
             try:
-                try:
-                    fresh = Catalog.refresh()
-                    if chosen.region_groups or chosen.regions == self.catalog.resolve_regions():
-                        chosen.regions = fresh.resolve_regions(chosen.region_groups)
-                    self.events.put(("catalog", fresh))
-                    report["region_signs"] = list(chosen.regions)
-                except Exception:
-                    self.events.put(("log", self.tr('官网目录暂未刷新，使用最近的已验证目录。')))
+                # Waiting starts immediately with the selected, validated scope.
+                # The explicit catalog-refresh control updates it outside a run.
+                if not waiting:
+                    try:
+                        fresh = Catalog.refresh()
+                        if chosen.region_groups or chosen.regions == self.catalog.resolve_regions():
+                            chosen.regions = fresh.resolve_regions(chosen.region_groups)
+                        self.events.put(("catalog", fresh))
+                        report["region_signs"] = list(chosen.regions)
+                    except Exception:
+                        self.events.put(("log", self.tr('官网目录暂未刷新，使用最近的已验证目录。')))
                 if waiting:
                     report["result"] = engine.auto_wait(chosen, self.cancel, execute=execute)
                 else:

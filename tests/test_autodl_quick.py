@@ -79,7 +79,7 @@ class FilteringTests(unittest.TestCase):
                 amount(value, "price")
 
     def test_validations(self):
-        for change in ({"max_price": "NaN"}, {"max_price": "-1"}, {"poll_seconds": 1},
+        for change in ({"max_price": "NaN"}, {"max_price": "-1"}, {"poll_seconds": 0.1},
                        {"wait_minutes": 0}, {"image_cuda": "bad"}, {"regions": "test"},
                        {"min_cuda": "bad"}, {"image_uuid": ""}, {"poll_seconds": True}):
             with self.subTest(change=change), self.assertRaises(QuickError):
@@ -119,7 +119,7 @@ class EngineTests(unittest.TestCase):
         result = self.engine.rent(settings(), threading.Event())
         self.assertEqual(result["instance_uuid"], "test-instance-001")
         self.api.create.assert_called_once()
-        self.assertEqual(self.api.quote.call_count, 2)
+        self.assertEqual(self.api.quote.call_count, 1)
         self.assertEqual(self.journal.read()["status"], "created")
         with self.assertRaises(QuickError):
             self.engine.rent(settings(), threading.Event())
@@ -188,7 +188,9 @@ class EngineTests(unittest.TestCase):
         self.api.create.assert_not_called()
 
     def test_price_increases_during_final_check(self):
-        self.api.quote.side_effect = [Decimal("3.50"), Decimal("5.00")]
+        # Inventory lists a price within the cap; the single final account quote
+        # after the online check is higher and must prevent submission.
+        self.api.quote.return_value = Decimal("5.00")
         with self.assertRaises(Cancelled):
             self.engine.rent(settings(), StopAtWait())
         self.api.create.assert_not_called()

@@ -30,6 +30,10 @@ class WindowTests(unittest.TestCase):
         chosen = self.app.get_settings()
         self.assertEqual(chosen.max_price, "")
 
+    def test_polling_interval_accepts_fractional_seconds(self):
+        self.app.interval.set("0.5")
+        self.assertEqual(self.app.get_settings().poll_seconds, 0.5)
+
     def test_read_only_cannot_enable_paid_mode(self):
         self.app.read_only = True
         self.app.real_rent.set(True)

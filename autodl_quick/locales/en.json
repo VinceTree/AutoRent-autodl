@@ -340,5 +340,10 @@
   "创建失败详情：{p0}": "Creation error details: {p0}",
   "创建结果未确认：{p0}。已停止并保留记录，不会自动重试": "Creation outcome unknown: {p0}. Stopped and retained the record. No automatic retry",
   "{p0}。上次失败原因：{p1}": "{p0}. Previous failure: {p1}",
-  "操作已停止：{p0}": "Operation stopped: {p0}"
+  "操作已停止：{p0}": "Operation stopped: {p0}",
+  "查询间隔必须是有限数字": "Query interval must be a finite number",
+  "查询间隔应在 0.5–3600 秒之间": "Query interval must be 0.5–3600 seconds",
+  "快查基础间隔秒数，默认 1，至少 0.5；无卡降频，失败退避": "Fast polling interval in seconds, default 1, minimum 0.5; slows when idle and backs off on errors",
+  "间隔应为数字；等待时长、显存、扩容容量应为整数；地区应来自官网目录": "Interval must be numeric; wait limit, VRAM and disk expansion must be integers; regions must come from the catalog",
+  "查询暂时失败，{p0} 秒后重查：{p1}": "Query temporarily failed; retry in {p0} seconds: {p1}"
 }

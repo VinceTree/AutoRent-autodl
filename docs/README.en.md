@@ -29,6 +29,7 @@ Opening the app does not place an order. Auto-rent creates one single-GPU instan
 - **Exact search scope:** select regions and models; waiting never broadens your selection.
 - **Disk expansion:** exclude hosts with insufficient capacity and include the requested expansion in the order.
 - **Automatic configuration:** load account prices, hardware information and compatible images.
+- **Adaptive polling:** probe hosts directly, start at a 1-second base interval, slow to about 3 seconds when idle, try fallback hosts immediately and back off on rate limits.
 - **Separate billing display:** show GPU prices per hour and data disk fees per day.
 - **Read-only testing:** inspect stock and quotes without creating instances; stop on uncertain submissions.
 - **English and Chinese:** both the main window and advanced preferences support either language.
