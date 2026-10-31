@@ -142,7 +142,9 @@ python -m autodl_quick images --read-only --image-platform mthreads --lang en
 python -m autodl_quick rent --execute --lang en
 ```
 
-Tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback and uncertain creation. Local authenticated verification used read-only stock and quote endpoints; it did not submit paid creation for testing.
+The 189 offline and GUI tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback, uncertain creation, adaptive polling, rejection expiry, rate-limit backoff and request deadlines.
+
+On October 31, 2026 (China time), one user-authorized live test used the repository's `Engine.auto_wait` to rent a single RTX 4090 in Beijing B within the saved scope, at an account quote of CNY 2.18/hour with no disk expansion. It sent creation about 0.97 seconds after the first probe began and received the instance ID after about 1.18 seconds, using four reads before submission. These timings exclude reading the local Chrome session. The test confirmed `running`, requested shutdown and confirmed `shutdown`. It sent exactly one create request: two read-only preflight requests plus twelve requests covering acquisition, a server-side fallback shutdown timer, status checks and shutdown. No high-frequency load test was performed. Existing instance states and the original rental journal were preserved. Local evidence is in `.state/preflight-v2.json` and `.state/live-smoke-v2.json`, without the Token. Explicit no-stock fallback remains covered by offline simulation.
 
 `config.json`, `.state/`, `.research/`, local reports and caches are excluded from Git. Screenshots use offline demonstration data without real credentials or rental records.
 
