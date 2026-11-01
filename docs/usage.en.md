@@ -111,7 +111,9 @@ An OS-level lock prevents concurrent rental processes. A durable submitting reco
 - A create timeout, unclear response or other business rejection stops the run and retains its record. Creation is never retried blindly.
 - Temporary read failures may be retried within the main window's waiting limit. Expired login or unrecognized responses stop the run. The advanced legacy wait flow stops after five consecutive read failures.
 - Failures display the specific reason in the main window. Rental records retain the creation error type, platform error code or HTTP status. Individual reports in `.state/runs/` preserve earlier failures after another click. A blocked retry also includes the previous failure reason.
-- An existing successful or uncertain record blocks another rental. After checking the console, use `python -m autodl_quick archive-state --checked-console --lang en` if you intentionally want to rent another instance. Archiving neither shuts down nor releases an instance.
+- Starting a paid rental checks an existing **successful record with a complete instance ID** under the process lock. It searches the account's instance list by exact UUID, following pages only as needed. If the state is `shutdown`, `shutdown_by_starting_error` or `shutdown_by_running_error`, the complete original record is automatically archived to `.state/rental-TIMESTAMP.json`, then the current region, model and disk-expansion search continues.
+- Running, starting, shutting down, unknown or missing instances do not permit automatic archiving. Login, lookup or archive failures, cancellation and deadline expiry also block a new create. Uncertain submissions, corrupt records and missing IDs still require manual verification. Another stopped instance cannot satisfy the check. Read-only scans and waits never check or archive rental records; a run without a previous successful record adds no status request.
+- Automatic archiving only moves the local record; it does not stop, release or modify the old instance. The manual fallback remains `python -m autodl_quick archive-state --checked-console --lang en` after checking the console.
 
 ## CLI and tests
 
@@ -143,7 +145,7 @@ python -m autodl_quick images --read-only --image-platform mthreads --lang en
 python -m autodl_quick rent --execute --lang en
 ```
 
-The 196 offline and GUI tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback, uncertain creation, adaptive polling, rejection expiry, rate-limit backoff and request deadlines. Disk regressions also verify continued searching across pages and rounds with insufficient or unknown capacity, actual expansion after capacity returns, and preservation of the disk condition during fallback and language switching.
+The 222 offline and GUI tests cover exact GPU names, complete room mappings, stale inventory responses, disk capacity and units, separate daily fees, image matching, cancellation, concurrency, explicit no-stock fallback, uncertain creation, adaptive polling, rejection expiry, rate-limit backoff and request deadlines. Disk regressions also verify continued searching across pages and rounds with insufficient or unknown capacity, actual expansion after capacity returns, and preservation of the disk condition during fallback and language switching. Recovery regressions cover exact UUID matching, pagination, archiving under the process lock before continuing, and retaining protection on unknown states, lookup failures, cancellation, deadline expiry, journal changes or archive failures.
 
 On October 31, 2026 (China time), one user-authorized live test used the repository's `Engine.auto_wait` to rent a single RTX 4090 in Beijing B within the saved scope, at an account quote of CNY 2.18/hour with no disk expansion. It sent creation about 0.97 seconds after the first probe began and received the instance ID after about 1.18 seconds, using four reads before submission. These timings exclude reading the local Chrome session. The test confirmed `running`, requested shutdown and confirmed `shutdown`. It sent exactly one create request: two read-only preflight requests plus twelve requests covering acquisition, a server-side fallback shutdown timer, status checks and shutdown. No high-frequency load test was performed. Existing instance states and the original rental journal were preserved. Local evidence is in `.state/preflight-v2.json` and `.state/live-smoke-v2.json`, without the Token. Explicit no-stock fallback remains covered by offline simulation.
 
@@ -159,6 +161,7 @@ This tool uses the regular market web client's endpoints, not the separate [Pro 
 | Regional model counts | `POST /api/v1/machine/region/gpu_type` |
 | Hosts and account quotes | `POST /api/v1/user/machine/list`, `POST /api/v1/order/price/preview` |
 | Images and host status | `POST /api/v1/image/all`, `POST /api/v1/machine/check_machine_online` |
+| Previous-instance status | `POST /api/v1/instance` (exact instance-ID match) |
 | Creation and SSH metadata | `POST /api/v1/order/instance/create/payg`, `GET /api/v1/instance/snapshot` |
 
 Implementation references: [official web services](https://www.autodl.com/assets/service-code.30826265.js), [region mapping](https://www.autodl.com/assets/utils.3f8cc83b.js) and [order parameters](https://www.autodl.com/assets/index.9040cb9d.js). Web endpoints and asset URLs can change; unrecognized formats stop the tool rather than guessing prices or creation outcomes.

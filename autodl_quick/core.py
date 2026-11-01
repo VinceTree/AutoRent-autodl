@@ -37,6 +37,7 @@ BASE_URL = "https://www.autodl.com"
 GPU_NAME = "RTX 5090"
 MILLI = Decimal(1000)
 GIB = 1024 ** 3
+SHUTDOWN_STATES = frozenset({"shutdown", "shutdown_by_starting_error", "shutdown_by_running_error"})
 
 
 class QuickError(Exception):
@@ -469,6 +470,41 @@ class AutoDL:
             raise CreateUncertain("平台未返回实例 ID，请先核对控制台")
         return data
 
+    def instance_status(self, instance_id: str, cancel: threading.Event) -> str | None:
+        """Find an exact UUID in the account list; absence never proves shutdown."""
+        if not isinstance(instance_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", instance_id):
+            raise QuickError("旧实例 ID 无效，已保留租卡记录")
+        seen: set[str] = set()
+        count = 0
+        for page in range(1, 101):
+            check_cancel(cancel)
+            data = self.request("POST", "/api/v1/instance", {"page_index": page, "page_size": 100})
+            if not isinstance(data, dict) or not isinstance(data.get("list"), list):
+                raise QuickError("实例列表响应格式变化，无法确认旧实例状态")
+            rows = data["list"]
+            matches = [row for row in rows if isinstance(row, dict) and row.get("uuid") == instance_id]
+            if len(matches) > 1:
+                raise QuickError("实例列表返回重复 ID，无法确认旧实例状态")
+            if matches:
+                status = matches[0].get("status")
+                if not isinstance(status, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", status):
+                    raise QuickError("旧实例状态格式变化，已保留租卡记录")
+                return status
+            if not rows:
+                return None
+            ids = {row["uuid"] for row in rows if isinstance(row, dict) and isinstance(row.get("uuid"), str)}
+            if not ids - seen:
+                raise QuickError("实例列表分页未前进，无法确认旧实例状态")
+            seen.update(ids)
+            count += len(rows)
+            max_page = integer(data.get("max_page"))
+            total = integer(data.get("result_total"), -1)
+            if (max_page and page >= max_page) or (total >= 0 and count >= total):
+                return None
+            if not max_page and total < 0 and len(rows) < 100:
+                return None
+        raise QuickError("实例列表超过 100 页，无法确认旧实例状态")
+
     def snapshot(self, instance_id: str) -> dict:
         # GET query parameters follow the website's snapshot client.
         path = "/api/v1/instance/snapshot"
@@ -694,11 +730,12 @@ class RentalJournal:
     def write(self, **data) -> None:
         atomic_json(self.path, data)
 
-    def archive(self) -> None:
+    def archive(self) -> Path | None:
         previous = self.read()
         if previous:
             destination = self.directory / f"rental-{time.time_ns()}.json"
             os.replace(self.path, destination)
+            return destination
 
 
 class Engine:
@@ -709,6 +746,39 @@ class Engine:
         self.journal = journal or RentalJournal()
         self._image_cache: dict[tuple[str, str], list[dict]] = {}
         self._stock_rejections: dict[str, float] = {}
+
+    def prepare_rental(self, cancel: threading.Event, deadline: float) -> None:
+        """Called under the rental lock, with reads bounded by the run deadline."""
+        check_cancel(cancel)
+        previous = self.journal.read()
+        instance_id = previous.get("instance_uuid")
+        if (previous.get("status") != "created" or not isinstance(instance_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9_-]+", instance_id)):
+            # Uncertain submissions, missing IDs and corrupt records stay blocked.
+            self.journal.ensure_new()
+            return
+        self.emit("log", f"检测到旧租卡记录，正在核对实例 {instance_id} 的当前状态")
+        try:
+            status = self.api.instance_status(instance_id, cancel)
+        except ReadUnavailable as error:
+            raise QuickError(f"暂时无法核对旧实例，已停止抢卡并保留记录：{error}") from None
+        check_cancel(cancel)
+        if time.monotonic() >= deadline:
+            raise QuickError("已达到等待时限，尚未创建实例")
+        if status is None:
+            raise QuickError(f"未找到旧实例 {instance_id}，无法确认已关机；已停止抢卡并保留记录")
+        if not isinstance(status, str) or status not in SHUTDOWN_STATES:
+            raise QuickError(f"旧实例 {instance_id} 当前状态为 {status}，尚未确认关机；已停止抢卡并保留记录")
+        if self.journal.read() != previous:
+            raise QuickError("核对期间租卡记录已变化，已停止抢卡")
+        try:
+            archive = self.journal.archive()
+        except OSError:
+            raise QuickError("旧实例已关机，但历史记录归档失败，已停止抢卡") from None
+        if archive is None:
+            raise QuickError("旧租卡记录无法归档，已停止抢卡")
+        self.journal.ensure_new()
+        self.emit("log", f"旧实例 {instance_id} 已确认关机，记录已归档至 {archive.name}；继续抢卡")
 
     def quote_candidate(self, settings: Settings, candidate: Candidate) -> Decimal:
         if settings.expand_disk_gb:
@@ -910,8 +980,6 @@ class Engine:
         settings = copy.deepcopy(settings)
         settings.validate(renting=execute)
         with self.journal if execute else nullcontext():
-            if execute:
-                self.journal.ensure_new()
             deadline = time.monotonic() + settings.wait_minutes * 60
             cadence = PollCadence(settings.poll_seconds, time.monotonic())
             self._stock_rejections.clear()
@@ -919,6 +987,8 @@ class Engine:
             if settings.expand_disk_gb:
                 self.emit("log", f"扩容筛选已启用：必须可新增 {settings.expand_disk_gb} GB，容量不足或未知则跳过并继续等待")
             with self.api.polling(cancel, deadline):
+                if execute:
+                    self.prepare_rental(cancel, deadline)
                 while time.monotonic() < deadline:
                     check_cancel(cancel)
                     started = time.monotonic()

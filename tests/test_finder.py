@@ -26,6 +26,7 @@ def api_fixture():
     api.images.return_value = [{"uuid": "auto-image", "cuda": "12.8", "kind": "base", "chip": "nvidia", "arch": "x86", "label": "PyTorch / CUDA 12.8"}]
     api.create.return_value = "test-instance"
     api.snapshot.return_value = {}
+    api.instance_status.return_value = "running"
     return api
 
 
@@ -311,6 +312,38 @@ class FinderWindowTests(unittest.TestCase):
             self.assertEqual(len(reports), 2)
             self.assertTrue(any(report["error_code"] == "UnknownBusinessFailure" for report in reports))
             self.assertNotIn("fake-test-token", json.dumps(reports))
+
+    def test_rent_button_archives_a_verified_stopped_record_and_continues(self):
+        import tkinter as tk
+        from autodl_quick.ui.main import App
+        from test_disk import disk_api
+
+        window = tk.Toplevel(self.root)
+        window.withdraw()
+        app = App(window, Settings(regions=["west-B"], gpu_names=["RTX 5090"], expand_disk_gb=100))
+        self.addCleanup(app.close)
+        app.token.set("fake-test-token")
+        api = disk_api()
+        api.instance_status.return_value = "shutdown"
+        with tempfile.TemporaryDirectory() as temp:
+            journal = RentalJournal(Path(temp) / "rental")
+            journal.write(status="created", instance_uuid="old-instance", instance_name="old-rental")
+            original = journal.path.read_bytes()
+            with patch("autodl_quick.ui.main.AutoDL", return_value=api), patch("autodl_quick.ui.main.ROOT", Path(temp)), patch("autodl_quick.ui.main.Engine", side_effect=lambda client, emit: Engine(client, emit, journal=journal)):
+                app.rent_button.invoke()
+                deadline = time.monotonic() + 5
+                while app.busy and time.monotonic() < deadline:
+                    self.root.update()
+                    time.sleep(0.01)
+                self.assertFalse(app.busy)
+                self.assertIn("已租用一台", app.status.get())
+                self.assertIn("旧实例 old-instance 已确认关机", app.log.get("1.0", "end"))
+                archives = list(journal.directory.glob("rental-*.json"))
+                self.assertEqual(len(archives), 1)
+                self.assertEqual(archives[0].read_bytes(), original)
+                api.instance_status.assert_called_once_with("old-instance", app.cancel)
+                api.create.assert_called_once()
+                api.quote_detail.assert_called_once_with("test-host", 100)
 
     def test_scan_automatically_displays_first_card_details_without_choice(self):
         api = api_fixture()

@@ -354,5 +354,19 @@
   "点击“持续自动找卡”，继续等待可新增 {p0} GB 数据盘的主机。": "Click Wait for stock to keep looking for room for {p0} GB extra disk.",
   "扩容筛选已启用：必须可新增 {p0} GB，容量不足或未知则跳过并继续等待": "Disk filter enabled: require {p0} GB extra; skip insufficient or unknown capacity and keep waiting",
   "当前没有满足新增 {p0} GB 数据盘条件的匹配主机，{p1} 秒后继续抢卡": "No matching host with room for {p0} GB extra disk; check again in {p1} seconds",
-  "扩容筛选：新增 {p0} GB；": "Disk filter: {p0} GB extra; "
+  "扩容筛选：新增 {p0} GB；": "Disk filter: {p0} GB extra; ",
+  "旧实例 ID 无效，已保留租卡记录": "Invalid previous instance ID; rental record retained",
+  "实例列表响应格式变化，无法确认旧实例状态": "Instance list format changed; cannot verify the previous instance",
+  "实例列表返回重复 ID，无法确认旧实例状态": "Duplicate IDs in the instance list; cannot verify the previous instance",
+  "旧实例状态格式变化，已保留租卡记录": "Previous instance status format changed; rental record retained",
+  "实例列表分页未前进，无法确认旧实例状态": "Instance list pagination did not advance; cannot verify the previous instance",
+  "实例列表超过 100 页，无法确认旧实例状态": "Instance list exceeds 100 pages; cannot verify the previous instance",
+  "检测到旧租卡记录，正在核对实例 {p0} 的当前状态": "Previous rental record found; checking the current state of instance {p0}",
+  "暂时无法核对旧实例，已停止抢卡并保留记录：{p0}": "Cannot verify the previous instance right now; stopped and retained the record: {p0}",
+  "未找到旧实例 {p0}，无法确认已关机；已停止抢卡并保留记录": "Previous instance {p0} not found; shutdown is unconfirmed. Stopped and retained the record",
+  "旧实例 {p0} 当前状态为 {p1}，尚未确认关机；已停止抢卡并保留记录": "Previous instance {p0} is {p1}; shutdown is unconfirmed. Stopped and retained the record",
+  "核对期间租卡记录已变化，已停止抢卡": "Rental record changed during verification; stopped",
+  "旧实例已关机，但历史记录归档失败，已停止抢卡": "Previous instance is shut down, but archiving its record failed; stopped",
+  "旧租卡记录无法归档，已停止抢卡": "Previous rental record could not be archived; stopped",
+  "旧实例 {p0} 已确认关机，记录已归档至 {p1}；继续抢卡": "Previous instance {p0} confirmed shut down; record archived to {p1}. Continuing the search"
 }

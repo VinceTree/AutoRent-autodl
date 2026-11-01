@@ -106,6 +106,7 @@ class EngineTests(unittest.TestCase):
         self.api.online.return_value = True
         self.api.create.return_value = "test-instance-001"
         self.api.snapshot.return_value = {"ssh_command": "ssh -p 12345 root@test.invalid"}
+        self.api.instance_status.return_value = "running"
         self.engine = Engine(self.api, journal=self.journal)
 
     def test_rehearsal_never_creates_or_writes_journal(self):
